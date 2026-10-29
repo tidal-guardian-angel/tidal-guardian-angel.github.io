@@ -2,7 +2,11 @@
 import { createSwissEph, Body, Flag, Calendar } from '@kuntay/swisseph';
 import { resolveLocal, formatInZone, initTimezones, getTimezoneVersion } from './timezone.js';
 
-const FILES = Object.freeze(['sepl_12.se1', 'semo_12.se1', 'sepl_18.se1', 'semo_18.se1']);
+const FILES = Object.freeze(['sepl_18.se1', 'semo_18.se1', 'sepl_12.se1', 'semo_12.se1']);
+const BLOCK_FILES = Object.freeze({
+  18: FILES.slice(0, 2),
+  12: FILES.slice(2),
+});
 const FLAGS = Flag.SwissEphemeris | Flag.Speed;
 const PHASE_TOLERANCE = 1e-8;
 const CLASSICAL_PLANETS = Object.freeze([
@@ -16,9 +20,14 @@ const HOUSE_SYSTEMS = Object.freeze({
   regiomontanus: { code: 'R', label: '雷吉奥蒙塔努斯宫制' },
   placidus: { code: 'P', label: '普拉西德宫制' },
 });
-let initialization = null;
+let source = null;
+let engineLoading = null;
+let timezoneLoading = null;
 let engine = null;
 let runtime = null;
+const fileLoads = new Map();
+const loadedFiles = new Set();
+const verifiedBlocks = new Set();
 
 export class CalculationError extends Error {
   constructor(message, code = 'invalid_input', choices = []) {
@@ -123,49 +132,124 @@ function makeRuntime(swe) {
   };
 }
 
+function neededBlocks(date, includeSyzygy) {
+  if (date === undefined || date === null || date === '') return ['18'];
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new CalculationError('请填写有效公历出生日期。');
+  }
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date
+      || date < '1800-01-01' || date > '2100-12-31') {
+    throw new CalculationError('出生日期须为公历 1800—2100 年内的有效日期。');
+  }
+  // The Jan 23 margin covers the 22-day phase-search bracket and civil UTC
+  // offsets. Jan 1 itself can be in 1799 UTC even without a prenatal search.
+  const previousBlock = date === '1800-01-01' || (includeSyzygy && date < '1800-01-23');
+  return previousBlock ? ['18', '12'] : ['18'];
+}
+
+function requireSyzygyOption(value) {
+  if (value !== undefined && typeof value !== 'boolean') {
+    throw new CalculationError('朔望计算选项须为 true 或 false。');
+  }
+  return value !== false;
+}
+
+function prepareEngine() {
+  if (engineLoading) return engineLoading;
+  const attempt = (async () => {
+    const candidate = await source.createEngine();
+    try {
+      const candidateRuntime = makeRuntime(candidate);
+      engine = candidate; runtime = candidateRuntime;
+      return candidate;
+    } catch (error) { candidate.dispose(); throw error; }
+  })();
+  engineLoading = attempt;
+  attempt.catch(() => {
+    if (engineLoading === attempt) {
+      engineLoading = null;
+      fileLoads.clear(); loadedFiles.clear(); verifiedBlocks.clear();
+    }
+  });
+  return attempt;
+}
+
+function prepareTimezones() {
+  if (timezoneLoading) return timezoneLoading;
+  const attempt = initTimezones(source.timezoneData || source.base.href);
+  timezoneLoading = attempt;
+  attempt.catch(() => { if (timezoneLoading === attempt) timezoneLoading = null; });
+  return attempt;
+}
+
+function prepareFile(filename, readyEngine) {
+  if (loadedFiles.has(filename)) return Promise.resolve();
+  if (fileLoads.has(filename)) return fileLoads.get(filename);
+  const attempt = (async () => {
+    const content = await source.loadFile(new URL(`ephe/${filename}`, source.base), filename);
+    const bytes = content instanceof Uint8Array ? content : new Uint8Array(content);
+    if (bytes.byteLength < 1024) throw new Error(`星历文件不完整：${filename}`);
+    const target = await readyEngine;
+    target.mountEphemeris({ [filename]: bytes });
+    loadedFiles.add(filename);
+  })();
+  fileLoads.set(filename, attempt);
+  attempt.then(
+    () => { if (fileLoads.get(filename) === attempt) fileLoads.delete(filename); },
+    () => { if (fileLoads.get(filename) === attempt) fileLoads.delete(filename); },
+  );
+  return attempt;
+}
+
+function verifyBlock(block) {
+  if (verifiedBlocks.has(block)) return;
+  if (!BLOCK_FILES[block].every((filename) => loadedFiles.has(filename))) {
+    throw new CalculationError('所需星历文件未能完整加载，请重试。', 'ephemeris_unavailable');
+  }
+  try {
+    const jd = block === '18' ? 2451545 : 2378491;
+    for (const [, body] of CLASSICAL_PLANETS) runtime.position(jd, body);
+    verifiedBlocks.add(block);
+  } catch (error) {
+    // A downloaded but corrupt/wrong-block file must be fetched afresh on a
+    // retry, rather than remaining forever in the successful-file cache.
+    for (const filename of BLOCK_FILES[block]) {
+      loadedFiles.delete(filename);
+      try { engine.raw.FS.unlink(`/ephe/${filename}`); } catch { /* absent */ }
+    }
+    engine.setEphemerisPath('/ephe');
+    throw error;
+  }
+}
+
 /**
- * baseURL points to this site's data/ directory (including a project subpath).
- * Optional loadFile(url, filename) and timezoneData enable file-based Node
- * verification without changing the browser's same-origin loading path.
+ * Prepare WASM and date-appropriate same-origin files in parallel. Source URL,
+ * loader and timezone data are configured only on the first call and retained
+ * by later calls, including calculateBirth. createEngine is a Node-test seam;
+ * production always uses the default createSwissEph factory.
  */
 export async function initAstrology(baseURL, options = {}) {
-  if (initialization) return initialization;
-  const attempt = (async () => {
-    let candidate;
-    let candidateRuntime;
-    try {
-      const base = dataBaseURL(baseURL);
-      const loader = options.loadFile || fetchFile;
-      const [, loaded] = await Promise.all([
-        initTimezones(options.timezoneData || base.href),
-        Promise.all(FILES.map(async (filename) => {
-          const content = await loader(new URL(`ephe/${filename}`, base), filename);
-          const bytes = content instanceof Uint8Array ? content : new Uint8Array(content);
-          if (bytes.byteLength < 1024) throw new Error(`星历文件不完整：${filename}`);
-          return [filename, bytes];
-        })),
-      ]);
-      candidate = await createSwissEph({ files: Object.fromEntries(loaded) });
-      candidateRuntime = makeRuntime(candidate);
-      // Cover both 600-year blocks, including a prenatal event in late 1799.
-      for (const jd of [2451545, 2378491]) {
-        for (const [, body] of CLASSICAL_PLANETS) candidateRuntime.position(jd, body);
-      }
-      engine = candidate;
-      runtime = candidateRuntime;
-      return { engine: `Swiss Ephemeris ${engine.version} WebAssembly`, files: [...FILES], timezone_data: getTimezoneVersion() };
-    } catch (error) {
-      candidateRuntime?.dispose();
-      candidate?.dispose();
-      if (error instanceof CalculationError) throw error;
-      throw new CalculationError('星历或时区文件尚未加载成功，请重新加载本页；手动输入仍可使用。', 'ephemeris_unavailable');
-    }
-  })();
-  initialization = attempt;
-  try { return await attempt; }
-  catch (error) {
-    if (initialization === attempt) initialization = null;
-    throw error;
+  if (!options || typeof options !== 'object' || Array.isArray(options)) throw new CalculationError('星历初始化选项无效。');
+  const includeSyzygy = requireSyzygyOption(options.includeSyzygy);
+  const blocks = neededBlocks(options.date, includeSyzygy);
+  if (!source) {
+    if (options.loadFile !== undefined && typeof options.loadFile !== 'function') throw new CalculationError('星历读取方式无效。');
+    if (options.createEngine !== undefined && typeof options.createEngine !== 'function') throw new CalculationError('星历引擎初始化方式无效。');
+    source = { base: dataBaseURL(baseURL), loadFile: options.loadFile || fetchFile,
+      timezoneData: options.timezoneData, createEngine: options.createEngine || createSwissEph };
+  }
+  try {
+    // Start the WASM fetch/instantiation *before awaiting any data download*.
+    const readyEngine = prepareEngine();
+    const downloads = blocks.flatMap((block) => BLOCK_FILES[block]).map((filename) => prepareFile(filename, readyEngine));
+    await Promise.all([readyEngine, prepareTimezones(), ...downloads]);
+    for (const block of blocks) verifyBlock(block);
+    return { engine: `Swiss Ephemeris ${engine.version} WebAssembly`,
+      files: FILES.filter((filename) => loadedFiles.has(filename)), timezone_data: getTimezoneVersion() };
+  } catch (error) {
+    if (error?.code) throw error;
+    throw new CalculationError('星历或时区文件尚未加载成功，请重试；手动输入仍可使用。', 'ephemeris_unavailable');
   }
 }
 
@@ -206,7 +290,7 @@ function previousSyzygy(jd) {
 
 const utcISO = (milliseconds) => new Date(Math.floor(milliseconds / 1000) * 1000).toISOString().replace('.000Z', '+00:00');
 
-export async function calculateBirth(payload) {
+export async function calculateBirth(payload, { includeSyzygy = true } = {}) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new CalculationError('请填写出生资料。');
   const latitude = number(payload.latitude, '纬度', -90, 90, false);
   const longitude = number(payload.longitude, '经度', -180, 180);
@@ -215,8 +299,9 @@ export async function calculateBirth(payload) {
       || !Object.hasOwn(HOUSE_SYSTEMS, houseSystemKey))) {
     throw new CalculationError('请选择整宫、波菲利、雷吉奥蒙塔努斯或普拉西德宫制。', 'invalid_house_system');
   }
-  if (!initialization) throw new CalculationError('星历尚未就绪，请先等待文件加载完成。', 'ephemeris_unavailable');
-  await initialization;
+  includeSyzygy = requireSyzygyOption(includeSyzygy);
+  if (!source) throw new CalculationError('星历尚未就绪，请先等待文件加载完成。', 'ephemeris_unavailable');
+  await initAstrology(undefined, { date: payload.date, includeSyzygy });
   // resolveLocal performs strict date/time/zone and DST overlap/gap validation.
   const local = resolveLocal(payload.date, payload.time, payload.timezone, payload.fold ?? null);
   const warnings = [];
@@ -245,16 +330,29 @@ export async function calculateBirth(payload) {
       houseCusps = selected.cusps.map(normalize);
     }
     const altitude = runtime.altitude(jd, latitude, longitude, sun.values);
-    const [eventJD, target] = previousSyzygy(jd);
-    const [eventSun, eventMoon] = positions(eventJD);
-    const eventMillis = runtime.jdToUTCMillis(eventJD);
+    let eventMeta = {};
+    let eventFlags = {};
+    let syzygy = null;
+    if (includeSyzygy) {
+      const [eventJD, target] = previousSyzygy(jd);
+      const [eventSun, eventMoon] = positions(eventJD);
+      const eventMillis = runtime.jdToUTCMillis(eventJD);
+      syzygy = normalize(eventMoon.values[0]);
+      eventMeta = {
+        syzygy_type: target === 0 ? '新月（朔）' : '满月（望）', syzygy_phase: target,
+        syzygy_local: formatInZone(Math.floor(eventMillis / 1000) * 1000, payload.timezone),
+        syzygy_utc: utcISO(eventMillis), syzygy_sun: normalize(eventSun.values[0]),
+        syzygy_moon: syzygy, syzygy_julian_day_ut: eventJD,
+      };
+      eventFlags = { syzygy_sun: eventSun.flags, syzygy_moon: eventMoon.flags };
+    }
     if (!Number.isFinite(altitude) || !Object.values(angles).every(Number.isFinite)) throw new Error('invalid axis');
     if (Math.abs(altitude) < 1) warnings.push('太阳接近地平线，出生时间的小幅变化可能改变昼夜判定与名号顺序。');
     if (Math.abs(latitude) >= 66) warnings.push('出生地位于高纬度地区，请特别核对准确时间和坐标；此处使用几何上升点。');
     if (Number(payload.date.slice(0, 4)) < 1900) warnings.push('1900 年以前的民用时间记录可能采用地方平时；请核对所选时区与史料。');
     return {
       sun: normalize(sun.values[0]), moon: normalize(moon.values[0]), ascendant,
-      syzygy: normalize(eventMoon.values[0]), sect: altitude >= 0 ? 'day' : 'night',
+      syzygy, sect: altitude >= 0 ? 'day' : 'night',
       positions: Object.fromEntries(CLASSICAL_PLANETS.map(([key]) => [key, normalize(planets[key].values[0])])),
       angles, mc: angles.mc, descendant: angles.descendant, ic: angles.ic,
       houseCusps, eleventhCusp: houseCusps?.[10] ?? null,
@@ -264,15 +362,12 @@ export async function calculateBirth(payload) {
         utc_offset: `UTC${local.utcOffset.replace(/^-/, '−')}`, fold: local.fold,
         latitude, longitude, sun_altitude: altitude,
         sect_rule: '太阳中心的几何高度 ≥ 0° 为昼生；不计大气折射与太阳半径。',
-        syzygy_type: target === 0 ? '新月（朔）' : '满月（望）', syzygy_phase: target,
-        syzygy_local: formatInZone(Math.floor(eventMillis / 1000) * 1000, payload.timezone),
-        syzygy_utc: utcISO(eventMillis),
-        syzygy_sun: normalize(eventSun.values[0]), syzygy_moon: normalize(eventMoon.values[0]),
+        ...eventMeta,
         engine: `Swiss Ephemeris ${engine.version} WebAssembly（Swiss 星历文件）`,
-        ephemeris_flags: { ...Object.fromEntries(CLASSICAL_PLANETS.map(([key]) => [key, planets[key].flags])), syzygy_sun: eventSun.flags, syzygy_moon: eventMoon.flags },
+        ephemeris_flags: { ...Object.fromEntries(CLASSICAL_PLANETS.map(([key]) => [key, planets[key].flags])), ...eventFlags },
         house_system: houseSystemKey,
         house_system_name: houseSystemKey === null ? '未选择（仅计算四角）' : HOUSE_SYSTEMS[houseSystemKey].label,
-        zodiac: '回归黄道，地心视位置', julian_day_ut: jd, syzygy_julian_day_ut: eventJD,
+        zodiac: '回归黄道，地心视位置', julian_day_ut: jd,
       },
       warnings,
     };

@@ -1,7 +1,83 @@
 import { calculateName } from './naming.js';
 import { calculateMethod, applyPronunciation } from './methods.js';
 import { calculateBirth, initAstrology } from './astrology.js';
-import { initTimezones } from './timezone.js';
+
+const BIRTH_FIELDS = ['date', 'time', 'latitude', 'longitude', 'timezone', 'fold', 'houseSystem'];
+
+function birthSnapshot(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new TypeError('请填写出生资料。');
+  const birth = Object.fromEntries(BIRTH_FIELDS.map(key => [key, payload[key]]));
+  for (const key of ['fold', 'houseSystem']) {
+    if (birth[key] === undefined || birth[key] === null || birth[key] === '') birth[key] = null;
+  }
+  return structuredClone(birth);
+}
+
+function birthCacheKey(birth, includeSyzygy) {
+  // Keep input types and exact coordinate representations distinct. In
+  // particular, JSON's usual NaN/Infinity -> null coercion must not make an
+  // invalid request hit a valid cached chart before astronomy validation.
+  return JSON.stringify([
+    ...BIRTH_FIELDS.map(key => [key, typeof birth[key], String(birth[key])]),
+    ['includeSyzygy', includeSyzygy],
+  ]);
+}
+
+/**
+ * Bounded, session-memory-only LRU cache. It never writes user data to storage.
+ * Full charts can satisfy requests that do not need a prenatal syzygy; charts
+ * without that calculation cannot satisfy a full-chart request. Both pending
+ * and completed entries count toward maxEntries. Eviction does not cancel a
+ * caller's pending computation, and completion never reinserts evicted data.
+ */
+export function createBirthChartCache(calculateBirthFn, maxEntries = 8) {
+  if (typeof calculateBirthFn !== 'function') throw new TypeError('排盘计算器必须是函数。');
+  if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) throw new RangeError('缓存上限须为正整数。');
+  const entries = new Map();
+
+  function touch(key, entry) {
+    entries.delete(key);
+    entries.set(key, entry);
+    return entry;
+  }
+
+  function createEntry(key, birth, includeSyzygy) {
+    const entry = {};
+    entry.promise = Promise.resolve()
+      .then(() => calculateBirthFn(structuredClone(birth), { includeSyzygy }))
+      .then(chart => structuredClone(chart))
+      .catch(error => {
+        // clear/eviction may already have replaced this exact key.
+        if (entries.get(key) === entry) entries.delete(key);
+        throw error;
+      });
+    entries.set(key, entry);
+    while (entries.size > maxEntries) entries.delete(entries.keys().next().value);
+    return entry;
+  }
+
+  return {
+    async get(payload, { includeSyzygy = true } = {}) {
+      if (typeof includeSyzygy !== 'boolean') throw new TypeError('朔望计算选项须为布尔值。');
+      const birth = birthSnapshot(payload);
+      const key = birthCacheKey(birth, includeSyzygy);
+      let entry = entries.get(key);
+      let actualKey = key;
+      if (!entry && !includeSyzygy) {
+        actualKey = birthCacheKey(birth, true);
+        entry = entries.get(actualKey);
+      }
+      if (entry) touch(actualKey, entry);
+      else entry = createEntry(key, birth, includeSyzygy);
+      return structuredClone(await entry.promise);
+    },
+    clear() { entries.clear(); },
+    get size() { return entries.size; },
+  };
+}
+
+const birthChartCache = createBirthChartCache(calculateBirth);
+export function clearBirthChartCache() { birthChartCache.clear(); }
 
 const labels = { sun:'太阳',moon:'月亮',mercury:'水星',venus:'金星',mars:'火星',jupiter:'木星',saturn:'土星',ascendant:'上升',mc:'天顶',fortune:'福点',syzygy:'朔望' };
 const degrees = value => Number(value).toFixed(6).replace(/0+$/,'').replace(/\.$/,'')+'°';
@@ -73,8 +149,9 @@ export async function calculate(payload, dataBase) {
     sect = payload.sect;
     common = { mode:'manual',place:'',meta:{zodiac:'回归黄道',engine:'手动输入点位（浏览器计算）'} };
   } else if (payload.mode === 'auto') {
-    await Promise.all([initAstrology(dataBase), initTimezones(dataBase)]);
-    const chart = await calculateBirth(payload);
+    const includeSyzygy = method === 'five';
+    await initAstrology(dataBase, { date: payload.date, includeSyzygy });
+    const chart = await birthChartCache.get(payload, { includeSyzygy });
     positions = { ...chart.positions,ascendant:chart.ascendant,mc:chart.mc,syzygy:chart.syzygy,eleventhCusp:chart.eleventhCusp };
     sect = chart.sect;
     common = { mode:'auto',place:payload.place || '',meta:chart.meta,chartWarnings:chart.warnings };

@@ -1,6 +1,7 @@
 'use strict';
 import { initPlaces, searchPlaces as searchCityRecords, getTimezones } from './places.js';
 import { initTimezones } from './timezone.js';
+import { initAstrology } from './astrology.js';
 import { calculate as calculateChart } from './calculator.js';
 import { renderResult, recordText, resultImage } from './result-view.js';
 
@@ -25,6 +26,37 @@ let method = null, mode = 'auto', currentResult = null, aggregate = null;
 let dirty = false, busy = false, exporting = false, requestVersion = 0;
 let places = [], placeIndex = -1, selectedPlace = null, placeTimer, searchVersion = 0, toastTimer;
 let placesReady = false, locationLoading = null;
+let preparationTimer, preparationVersion = 0, preparationKey = '', preparationState = 'idle';
+let preparationMessage = '填写出生日期后，会提前准备计算资料。';
+
+function schedulePreparation(){
+  const status=$('ephemeris-status');
+  const active=Boolean(method&&method!=='name'&&mode==='auto');
+  if(!active){clearTimeout(preparationTimer);preparationVersion++;preparationKey='';preparationState='idle';return;}
+  const date=$('birth-date').value;
+  if(!date||!$('birth-date').checkValidity()){
+    clearTimeout(preparationTimer);preparationVersion++;preparationKey='';preparationState='idle';
+    status.textContent='填写出生日期后，会提前准备计算资料。';return;
+  }
+  const includeSyzygy=method==='five',key=date+':'+includeSyzygy;
+  if(key===preparationKey&&['loading','ready'].includes(preparationState)){
+    status.textContent=preparationMessage;return;
+  }
+  clearTimeout(preparationTimer);
+  const version=++preparationVersion;preparationKey=key;preparationState='loading';
+  preparationMessage='正在提前准备计算资料，首次加载可能需要一些时间…';status.textContent=preparationMessage;
+  preparationTimer=setTimeout(async()=>{
+    try{
+      await initAstrology(dataBase,{date,includeSyzygy});
+      if(version!==preparationVersion)return;
+      preparationState='ready';preparationMessage='计算资料已就绪，可以计算。';
+    }catch{
+      if(version!==preparationVersion)return;
+      preparationState='error';preparationMessage='计算资料暂未准备完成，点击计算时会重试。';
+    }
+    status.textContent=preparationMessage;
+  },180);
+}
 
 function clearError() {
   $('form-error').hidden = true;
@@ -49,7 +81,7 @@ function setBusy(value){
     const button=$(id); if(!button)continue; button.disabled=value;
     const span=button.querySelector('span');if(span)span.textContent=value?'正在计算…':'计算名号';
   }
-  $('busy-status').textContent=value?'正在核对点位与取字记录…':'';
+  $('busy-status').textContent=value?(mode==='auto'&&method!=='name'?'正在准备计算资料并核对星盘…':'正在核对取字记录…'):'';
   document.querySelector('.result-panel').setAttribute('aria-busy',String(value));
 }
 function setMode(value,focus=false){
@@ -150,6 +182,7 @@ function updateFields(){
   $('manual-example').textContent='填入示例点位';
   $('manual-description').textContent=method==='five'?'使用回归黄道位置。福点由太阳、月亮、上升与昼夜自动计算。':'填写下列回归黄道位置；未要求的点位无需填写。';
   $('manual-hint').textContent=method==='five'?'朔望填写出生前最近一次新月或满月时的月亮位置。计算福点时保留分秒，查字时不四舍五入。':method==='angles'?'下降与天底由上升、天顶的对点推导。四角点指实际天文轴线。':method==='eleventh'?'十一宫头按你的原星盘抄入；采用的宫制以原盘为准。':'若按上升起布字，请同时填写上升。行星和上升分别取整数行后计算差值。';
+  schedulePreparation();
 }
 $('name-form').innerHTML='<div class="form-heading"><h2>填写姓名字母</h2><button id="name-example" class="small-link" type="button">试用示例</button></div>'+
   '<p class="form-description">输入拉丁、希伯来或阿拉伯字母，网站会自动识别。中文姓名请先确认字母拼写；这里不会自动转拼音或按笔画计数。</p>'+
@@ -169,6 +202,7 @@ function showRoute(push=false,next=null){
   const chosen=Object.hasOwn(configs,requested)?requested:null;
   requestVersion++;setBusy(false);if(chosen!==method)$('target-degree').value='';method=chosen;currentResult=null;aggregate=null;dirty=false;
   $('home-view').hidden=Boolean(method);$('tool-view').hidden=!method;
+  if(!method){clearTimeout(preparationTimer);preparationVersion++;preparationKey='';preparationState='idle';}
   $('result').hidden=true;$('empty-state').hidden=false;clearError();closePlaces();
   if(push){const url=new URL(location.href);url.search='';url.hash='';if(method)url.searchParams.set('method',method);history.pushState({},'',url);}
   if(method){
@@ -271,6 +305,8 @@ $('place-search').addEventListener('blur', () => setTimeout(closePlaces, 100));
 for (const id of ['birth-date','birth-time','timezone']) $(id).addEventListener('input', () => {
   $('time-fold').value = ''; $('fold-panel').hidden = true;
 });
+$('birth-date').addEventListener('input',schedulePreparation);
+window.addEventListener('pageshow',schedulePreparation);
 
 
 function fillPoint(key,sign,degree,minute,second=0){
@@ -291,11 +327,18 @@ $('manual-example').addEventListener('click',()=>{
   updateFields();clearError();markDirty();toast('已填入示例点位，点击“计算名号”查看结果。');
 });
 $('auto-example').addEventListener('click',async()=>{
+  if(busy)return;
   $('birth-date').value='2000-01-01';$('birth-time').value='12:00:00';$('place-search').value='北京';
+  selectedPlace=null;for(const id of ['latitude','longitude','timezone'])$(id).value='';
+  $('time-fold').value='';$('fold-panel').hidden=true;clearError();markDirty();closePlaces();
+  schedulePreparation();
+  const exampleMethod=method,version=requestVersion,snapshot=inputSnapshot();
+  const stillCurrent=()=>method===exampleMethod&&mode==='auto'&&version===requestVersion&&inputSnapshot()===snapshot;
   try{
-    await initLocationData();places=await searchCityRecords('北京');if(!places.length)throw new Error();selectPlace(0);
+    await initLocationData();const matches=await searchCityRecords('北京');if(!stillCurrent())return;
+    if(!matches.length)throw new Error();places=matches;selectPlace(0);
     toast('已填入北京示例资料，点击“计算名号”查看结果。');
-  }catch{showError('示例地点未能载入，请刷新后重试。');}
+  }catch{if(stillCurrent())showError('示例地点未能载入，请刷新后重试。');}
 });
 function readOptions(){
   const options={origin:option('letter-origin','aries'),selection:option('eleventh-selection','dignity'),triplicity:option('triplicity-choice','sect')};
@@ -367,6 +410,11 @@ async function calculate(event){
     const data=await calculateChart(payload,dataBase);
     if(version!==requestVersion)return;
     aggregate=data;dirty=inputSnapshot()!==snapshot;showCandidate(0);
+    if(payload.mode==='auto'&&!dirty){
+      clearTimeout(preparationTimer);preparationVersion++;
+      preparationKey=payload.date+':'+(method==='five');preparationState='ready';
+      preparationMessage='计算资料已就绪，可以计算。';$('ephemeris-status').textContent=preparationMessage;
+    }
     if(window.innerWidth<=800)document.querySelector('.result-panel').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
   }catch(error){
     if(version!==requestVersion)return;

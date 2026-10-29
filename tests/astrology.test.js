@@ -1,15 +1,23 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createSwissEph } from '@kuntay/swisseph';
 import { initAstrology, calculateBirth } from '../src/astrology.js';
 
 const dataURL = new URL('../public/data/', import.meta.url);
 const readLocal = async (url) => new Uint8Array(await readFile(url));
 let timezoneData;
+const initialLoads = [];
 
 before(async () => {
   timezoneData = JSON.parse(await readFile(new URL('timezones.json', dataURL), 'utf8'));
-  await initAstrology(dataURL, { loadFile: readLocal, timezoneData });
+  await initAstrology(dataURL, { loadFile: async (url, filename) => {
+    initialLoads.push(filename); return readLocal(url);
+  }, timezoneData });
+});
+
+test('default preparation loads only the two 1800–2399 ephemeris files', () => {
+  assert.deepEqual(initialLoads.sort(), ['semo_18.se1', 'sepl_18.se1']);
 });
 
 const sample = (changes = {}) => ({ date: '2000-01-01', time: '12:00', latitude: 51.4779, longitude: 0, timezone: 'UTC', ...changes });
@@ -130,15 +138,18 @@ test('invalid numeric types, extreme values, dates, clock and zones are rejected
   ]) await assert.rejects(calculateBirth(sample(changes)), (error) => Boolean(error.code));
 });
 
-test('initialization loads only the four explicitly specified local files and is idempotent', async () => {
+test('initialization reuses the loaded file inventory and ignores replacement loaders', async () => {
   const status = await initAstrology(dataURL, { loadFile: () => { throw new Error('must not reload'); }, timezoneData });
-  assert.deepEqual(status.files, ['sepl_12.se1', 'semo_12.se1', 'sepl_18.se1', 'semo_18.se1']);
+  assert.deepEqual(status.files, ['sepl_18.se1', 'semo_18.se1', 'sepl_12.se1', 'semo_12.se1']);
 });
 
 test('an incomplete file fails explicitly, and a failed init can be retried', async () => {
   const independent = await import('../src/astrology.js?incomplete-test');
-  await assert.rejects(independent.initAstrology(dataURL, { loadFile: async () => new Uint8Array(4), timezoneData }), { code: 'ephemeris_unavailable' });
-  await independent.initAstrology(dataURL, { loadFile: readLocal, timezoneData });
+  let incomplete = true;
+  const loader = (url) => incomplete ? Promise.resolve(new Uint8Array(4)) : readLocal(url);
+  await assert.rejects(independent.initAstrology(dataURL, { loadFile: loader, timezoneData }), { code: 'ephemeris_unavailable' });
+  incomplete = false;
+  await independent.initAstrology(dataURL);
   const result = await independent.calculateBirth(sample());
   within(result.sun, GOLDEN[0].values[0], 2e-7, 'recovered initialization');
 });
@@ -148,9 +159,14 @@ test('a valid file mounted under the wrong year-block name is rejected', async (
   // Supply valid 1800–2399 data under the 1200–1799 names. The 2000 probe
   // works; the 1799 probe must reject the mismatched file instead of claiming
   // that a successful download alone guarantees usable ephemeris data.
-  const wrongBlock = (url, filename) => readLocal(filename.includes('_12')
+  let wrong = true;
+  const wrongBlock = (url, filename) => readLocal(wrong && filename.includes('_12')
     ? new URL(`ephe/${filename.replace('_12', '_18')}`, dataURL) : url);
-  await assert.rejects(independent.initAstrology(dataURL, { loadFile: wrongBlock, timezoneData }), { code: 'ephemeris_error' });
+  await assert.rejects(independent.initAstrology(dataURL, { loadFile: wrongBlock, timezoneData, date: '1800-01-01' }), { code: 'ephemeris_error' });
+  wrong = false;
+  await independent.initAstrology(dataURL, { date: '1800-01-01' });
+  const recovered = await independent.calculateBirth(GOLDEN[7].input);
+  within(recovered.syzygy, GOLDEN[7].values[3], 2e-7, 'recovered wrong-block files');
 });
 
 // Native pyswisseph golden expansion, same pinned files and UTC/UT1 conversion.
@@ -242,4 +258,124 @@ test('omitting a house system keeps geometric angles but never fabricates an ele
     assert.ok(Number.isFinite(result.angles.ascendant));
     assert.ok(Number.isFinite(result.angles.mc));
   }
+});
+
+test('WASM creation completes while the two ephemeris downloads are still pending', { timeout: 3000 }, async () => {
+  const independent = await import('../src/astrology.js?parallel-start-test');
+  let releaseFiles;
+  const gate = new Promise((resolve) => { releaseFiles = resolve; });
+  let signalEngine;
+  const engineReady = new Promise((resolve) => { signalEngine = resolve; });
+  const downloads = [];
+  const pending = independent.initAstrology(dataURL, {
+    timezoneData,
+    createEngine: async () => { const instance = await createSwissEph(); signalEngine(); return instance; },
+    loadFile: async (url, filename) => { downloads.push(filename); await gate; return readLocal(url); },
+  });
+  await engineReady;
+  assert.deepEqual(downloads.sort(), ['semo_18.se1', 'sepl_18.se1']);
+  releaseFiles();
+  await pending;
+});
+
+test('concurrent preloads merge files and preserve the first source/loader configuration', async () => {
+  const independent = await import('../src/astrology.js?concurrent-preload-test');
+  const counts = new Map(); let engines = 0;
+  const options = { timezoneData, date: '2000-01-01',
+    createEngine: () => { engines++; return createSwissEph(); },
+    loadFile: (url, filename) => { counts.set(filename, (counts.get(filename) || 0) + 1); return readLocal(url); },
+  };
+  await Promise.all([
+    independent.initAstrology(dataURL, options),
+    independent.initAstrology(dataURL, { date: '1800-01-01' }),
+    independent.initAstrology(dataURL, { date: '1800-01-01' }),
+  ]);
+  assert.equal(engines, 1);
+  assert.equal(counts.size, 4);
+  assert.ok([...counts.values()].every((count) => count === 1));
+  await independent.calculateBirth(GOLDEN[7].input);
+  await independent.calculateBirth(GOLDEN[0].input);
+  assert.ok([...counts.values()].every((count) => count === 1));
+});
+
+test('real birth dates incrementally load the 1799 block and stay correct after switching forward', async () => {
+  const independent = await import('../src/astrology.js?date-switch-test');
+  const calls = [];
+  await independent.initAstrology(dataURL, { timezoneData, loadFile: (url, filename) => { calls.push(filename); return readLocal(url); } });
+  assert.equal(calls.length, 2);
+  const old = await independent.calculateBirth(GOLDEN[7].input);
+  assert.equal(calls.length, 4);
+  assert.equal(old.meta.syzygy_utc, GOLDEN[7].event);
+  const modern = await independent.calculateBirth(GOLDEN[8].input);
+  within(modern.sun, GOLDEN[8].values[0], 2e-7, '2100 after 1800');
+  assert.equal(calls.length, 4);
+});
+
+test('date margin loads the old block only when needed, including Jan 1 UTC rollover without syzygy', async () => {
+  const independent = await import('../src/astrology.js?date-margin-test');
+  const calls = [];
+  await independent.initAstrology(dataURL, { timezoneData, date: '1800-01-23', loadFile: (url, filename) => { calls.push(filename); return readLocal(url); } });
+  assert.equal(calls.length, 2);
+  await independent.initAstrology(dataURL, { date: '1800-01-22', includeSyzygy: false });
+  assert.equal(calls.length, 2);
+  const rollover = await independent.calculateBirth(sample({ date: '1800-01-01', time: '00:00', timezone: 'Asia/Tokyo' }), { includeSyzygy: false });
+  assert.match(rollover.meta.birth_utc, /^1799-/);
+  assert.equal(calls.length, 4);
+  assert.equal(rollover.syzygy, null);
+  for (const flag of Object.values(rollover.meta.ephemeris_flags)) assert.equal(flag & 7, 2);
+  const conservative = await import('../src/astrology.js?jan22-default-margin-test');
+  const guarded = await conservative.initAstrology(dataURL, { date: '1800-01-22', timezoneData, loadFile: readLocal });
+  assert.equal(guarded.files.length, 4);
+});
+
+test('incremental file failures can be retried without reloading successful files or recreating WASM', async () => {
+  const independent = await import('../src/astrology.js?incremental-retry-test');
+  const counts = new Map(); let engines = 0; let failOldMoon = true;
+  await independent.initAstrology(dataURL, { timezoneData,
+    createEngine: () => { engines++; return createSwissEph(); },
+    loadFile: (url, filename) => {
+      counts.set(filename, (counts.get(filename) || 0) + 1);
+      if (filename === 'semo_12.se1' && failOldMoon) { failOldMoon = false; throw new Error('temporary download failure'); }
+      return readLocal(url);
+    },
+  });
+  await assert.rejects(independent.initAstrology(dataURL, { date: '1800-01-01' }), { code: 'ephemeris_unavailable' });
+  await independent.initAstrology(dataURL, { date: '1800-01-01' });
+  assert.equal(engines, 1);
+  assert.equal(counts.get('sepl_18.se1'), 1);
+  assert.equal(counts.get('semo_18.se1'), 1);
+  assert.equal(counts.get('sepl_12.se1'), 1);
+  assert.equal(counts.get('semo_12.se1'), 2);
+  const result = await independent.calculateBirth(GOLDEN[7].input);
+  within(result.syzygy, GOLDEN[7].values[3], 2e-7, 'retried old phase');
+});
+
+test('excluding syzygy preserves the birth chart and omits every event field', async () => {
+  const complete = await calculateBirth(sample({ houseSystem: 'porphyry' }));
+  const basic = await calculateBirth(sample({ houseSystem: 'porphyry' }), { includeSyzygy: false });
+  for (const key of ['sun', 'moon', 'ascendant', 'sect', 'positions', 'angles', 'mc', 'descendant', 'ic', 'houseCusps', 'eleventhCusp']) {
+    assert.deepEqual(basic[key], complete[key], key);
+  }
+  assert.equal(basic.syzygy, null);
+  assert.ok(Object.keys(basic.meta).every((key) => !key.startsWith('syzygy_')));
+  assert.ok(Object.keys(basic.meta.ephemeris_flags).every((key) => !key.startsWith('syzygy_')));
+  assert.equal(basic.meta.sun_altitude, complete.meta.sun_altitude);
+  assert.deepEqual(basic.warnings, complete.warnings);
+});
+
+test('a failed WASM initialization can retry with its retained source configuration', async () => {
+  const independent = await import('../src/astrology.js?engine-retry-test');
+  let failEngine = true;
+  let attempts = 0;
+  const options = { timezoneData, loadFile: readLocal, createEngine: async () => {
+    attempts++;
+    if (failEngine) throw new Error('temporary WASM initialization failure');
+    return createSwissEph();
+  } };
+  await assert.rejects(independent.initAstrology(dataURL, options), { code: 'ephemeris_unavailable' });
+  failEngine = false;
+  await independent.initAstrology(dataURL);
+  const result = await independent.calculateBirth(GOLDEN[0].input, { includeSyzygy: false });
+  assert.equal(attempts, 2);
+  within(result.sun, GOLDEN[0].values[0], 2e-7, 'recovered WASM');
 });

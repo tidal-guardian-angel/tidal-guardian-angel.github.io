@@ -23,6 +23,7 @@ dialog{width:min(560px,calc(100vw - 32px));max-height:min(85vh,800px);max-height
 
 /* Method navigation keeps the established purple-grey, white and sage palette. */
 #home-view{max-width:1050px;margin:0 auto}
+.first-calculation-alert{margin:0 3px 25px;padding:15px 18px;border:1px solid #d5dfd0;border-radius:12px;background:var(--sage-soft);color:var(--sage);font-size:14px;line-height:1.85;overflow-wrap:anywhere}.first-calculation-alert strong{font-weight:600}.first-calculation-alert p{margin-top:3px}.preparation-status{min-height:26px;margin-top:13px;color:var(--muted);font-size:13px;line-height:1.85;overflow-wrap:anywhere}
 .home-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:28px;margin:2px 3px 34px}
 .home-copy{margin-top:13px;color:var(--muted);font-size:15px;line-height:1.9}
 .home-local-note{flex-shrink:0;padding-bottom:3px;color:var(--muted);font-size:13px;line-height:1.8}
