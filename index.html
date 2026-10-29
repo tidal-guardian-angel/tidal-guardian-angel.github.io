@@ -6,8 +6,8 @@
   <meta name="color-scheme" content="light">
   <title>守护天使名号工具箱｜潮汐纪年社</title>
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
-  <script type="module" crossorigin src="./assets/index-5SlcnzZ4.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-CGQ4kOac.css">
+  <script type="module" crossorigin src="./assets/index-CvbqK1uF.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-B6BKA3EJ.css">
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到主要内容</a>
@@ -22,6 +22,7 @@
         <div><p class="intro-note">选择取字方法</p><h1 id="home-title">守护天使名号工具箱</h1><p class="home-copy">点开一个抽屉，选择要用的方法。<br>每种方法都保留取字依据与计算记录。</p></div>
         <p class="home-local-note"><span class="local-dot" aria-hidden="true"></span>浏览器内计算<span>输入资料仅用于本次计算</span></p>
       </div>
+      <div class="first-calculation-alert" role="note"><strong>首次计算会比较慢</strong><p>首次使用需要加载排盘资料，请耐心等待。同一浏览器再次计算通常会更快。</p></div>
       <nav class="method-cabinet" aria-label="守护天使名号取字方法">
         <details class="method-drawer" data-method="five" open>
           <summary><span class="drawer-number" aria-hidden="true">01</span><h2 class="drawer-title">五生命点取字</h2><span class="drawer-tag">出生星盘</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
@@ -100,6 +101,7 @@
               <p class="field-hint" id="fold-hint">请根据出生记录确认，再重新计算。</p>
             </div>
             <button class="primary-button" id="auto-submit" type="submit"><span>计算名号</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M6 6l12 12M6 18 18 6"/></svg></button>
+            <p id="ephemeris-status" class="preparation-status" role="status" aria-live="polite">填写出生日期后，会提前准备计算资料。</p>
           </div>
         </form>
         <form id="manual-form" novalidate hidden>
