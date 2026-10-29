@@ -11,7 +11,7 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE.
 
 Complete corresponding application source:
-https://github.com/mkwanjyusi/tidal-guardian-angel
+https://github.com/tidal-guardian-angel/tidal-guardian-angel.github.io
 
 Third-party copyrights and licenses are preserved in public/licenses/.
 The exact Swiss Ephemeris WebAssembly dependency source is supplied in

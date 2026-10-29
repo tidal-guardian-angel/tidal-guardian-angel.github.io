@@ -1,6 +1,6 @@
 # 潮汐纪年社 · 守护天使名号计算器
 
-[打开网站](https://mkwanjyusi.github.io/tidal-guardian-angel/) · [项目源码](https://github.com/mkwanjyusi/tidal-guardian-angel)
+[打开网站](https://tidal-guardian-angel.github.io/) · [项目源码](https://github.com/tidal-guardian-angel/tidal-guardian-angel.github.io)
 
 浏览器内运行的五生命点取字工具，支持出生资料自动计算和手动输入点位。提供五点计算记录、带品牌水印的 PNG 导出、打印与复制记录，适配手机与桌面。
 
@@ -24,6 +24,8 @@ npm run preview
 `dist/` 是可部署的静态网站。通过 HTTP(S) 打开，直接双击 HTML 的 `file://` 方式无法载入城市、时区与星历文件。
 
 ## GitHub Pages
+
+品牌组织站点的目标地址为 `https://tidal-guardian-angel.github.io/`，对应组织 `tidal-guardian-angel` 下的仓库 `tidal-guardian-angel.github.io`。迁移时先部署并验收组织站点，再处理旧网址跳转，保留旧仓库与旧站服务。
 
 本项目采用 GitHub Pages 静态分支发布：`main` 保留完整源码，`gh-pages` 保留构建后的静态网站。在 Settings → Pages → Build and deployment 中选择 **Deploy from a branch**，分支选 `gh-pages`，目录选 `/ (root)`。
 
