@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>守护天使名号工具箱｜潮汐纪年社</title>
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
-  <script type="module" crossorigin src="./assets/index-DZjk4dBX.js"></script>
+  <script type="module" crossorigin src="./assets/index-5SlcnzZ4.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-CGQ4kOac.css">
 </head>
 <body>
@@ -49,11 +49,11 @@
         </details>
         <details class="method-drawer" data-method="almuten">
           <summary><span class="drawer-number" aria-hidden="true">07</span><h2 class="drawer-title">胜利星取字</h2><span class="drawer-tag drawer-tag-sage">手动选星</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
-          <div class="drawer-body"><p>先按课堂采用的规则确定胜利星，再手动选择这颗星，继续完成取字与名号组合。</p><a class="drawer-enter" href="?method=almuten">进入胜利星取字<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+          <div class="drawer-body"><p>先按你采用的规则确定胜利星，再手动选择这颗星，继续完成取字与名号组合。</p><a class="drawer-enter" href="?method=almuten">进入胜利星取字<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
         </details>
         <details class="method-drawer" data-method="luminary">
           <summary><span class="drawer-number" aria-hidden="true">08</span><h2 class="drawer-title">日月取字</h2><span class="drawer-tag drawer-tag-sage">手动选星</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
-          <div class="drawer-body"><p>按课堂采用的日月取字规则，手动选择所用星体，再查看对应字母与组合记录。</p><a class="drawer-enter" href="?method=luminary">进入日月取字<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+          <div class="drawer-body"><p>手动选择太阳或月亮，再查看对应字母与组合记录。</p><a class="drawer-enter" href="?method=luminary">进入日月取字<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
         </details>
       </nav>
     </section>
@@ -104,7 +104,7 @@
         </form>
         <form id="manual-form" novalidate hidden>
           <div id="panel-manual" role="tabpanel" aria-labelledby="tab-manual">
-            <div class="form-heading"><h2>填写星盘点位</h2><button class="small-link" id="manual-example" type="button">填入课堂示例</button></div>
+            <div class="form-heading"><h2>填写星盘点位</h2><button class="small-link" id="manual-example" type="button">填入示例点位</button></div>
             <p class="form-description" id="manual-description">使用回归黄道位置。福点由太阳、月亮、上升与昼夜自动计算。</p>
             <fieldset class="sect-control"><legend>出生昼夜</legend><label><input type="radio" name="sect" value="day" checked>昼生</label><label><input type="radio" name="sect" value="night">夜生</label></fieldset>
             <div class="point-column-head" aria-hidden="true"><span>点位</span><span>星座</span><span>度</span><span>分</span><span>秒</span></div>
@@ -132,9 +132,9 @@
           <div class="result-name-region">
           <div class="result-topline"><span id="result-context"></span><span id="sect-badge" class="sect-badge"></span></div>
           <p id="stale-notice" class="stale-notice" hidden>输入已修改，请重新计算以更新结果。</p>
-          <div class="name-display"><p>按本课程方法计算的名号</p><h2 id="hebrew-name" lang="he" dir="rtl"></h2><p id="latin-name" class="latin-name"></p><p id="reading-name" class="reading-name"></p></div>
+          <div class="name-display"><p>按本方法计算的名号</p><h2 id="hebrew-name" lang="he" dir="rtl"></h2><p id="latin-name" class="latin-name"></p><p id="reading-name" class="reading-name"></p></div>
           <div id="letter-strip" class="letter-strip" aria-label="按发音顺序排列的字母"></div>
-          <p class="reading-note">字母格按取字顺序从左至右列出，整名按希伯来文从右至左读。拼读采用字母名，连读方式可依课堂指导调整。</p>
+          <p class="reading-note">字母格按取字顺序从左至右列出，整名按希伯来文从右至左读。拼读采用固定赋音，分音节与连读分别保留。</p>
           <div id="result-warnings" class="result-warnings" hidden></div>
           <div class="result-actions"><button id="save-image" type="button" class="secondary-button">保存结果图</button><button id="print-result" type="button" class="secondary-button">打印／存为 PDF</button><button id="copy-result" type="button" class="text-button">复制记录</button></div>
           </div>
