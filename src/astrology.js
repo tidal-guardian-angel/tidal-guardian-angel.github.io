@@ -5,6 +5,17 @@ import { resolveLocal, formatInZone, initTimezones, getTimezoneVersion } from '.
 const FILES = Object.freeze(['sepl_12.se1', 'semo_12.se1', 'sepl_18.se1', 'semo_18.se1']);
 const FLAGS = Flag.SwissEphemeris | Flag.Speed;
 const PHASE_TOLERANCE = 1e-8;
+const CLASSICAL_PLANETS = Object.freeze([
+  ['sun', Body.Sun], ['moon', Body.Moon], ['mercury', Body.Mercury],
+  ['venus', Body.Venus], ['mars', Body.Mars], ['jupiter', Body.Jupiter],
+  ['saturn', Body.Saturn],
+]);
+const HOUSE_SYSTEMS = Object.freeze({
+  whole: { code: 'W', label: '整宫制' },
+  porphyry: { code: 'O', label: '波菲利宫制' },
+  regiomontanus: { code: 'R', label: '雷吉奥蒙塔努斯宫制' },
+  placidus: { code: 'P', label: '普拉西德宫制' },
+});
 let initialization = null;
 let engine = null;
 let runtime = null;
@@ -138,8 +149,7 @@ export async function initAstrology(baseURL, options = {}) {
       candidateRuntime = makeRuntime(candidate);
       // Cover both 600-year blocks, including a prenatal event in late 1799.
       for (const jd of [2451545, 2378491]) {
-        candidateRuntime.position(jd, Body.Sun);
-        candidateRuntime.position(jd, Body.Moon);
+        for (const [, body] of CLASSICAL_PLANETS) candidateRuntime.position(jd, body);
       }
       engine = candidate;
       runtime = candidateRuntime;
@@ -200,6 +210,11 @@ export async function calculateBirth(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new CalculationError('请填写出生资料。');
   const latitude = number(payload.latitude, '纬度', -90, 90, false);
   const longitude = number(payload.longitude, '经度', -180, 180);
+  const houseSystemKey = payload.houseSystem ?? null;
+  if (houseSystemKey !== null && (typeof houseSystemKey !== 'string'
+      || !Object.hasOwn(HOUSE_SYSTEMS, houseSystemKey))) {
+    throw new CalculationError('请选择整宫、波菲利、雷吉奥蒙塔努斯或普拉西德宫制。', 'invalid_house_system');
+  }
   if (!initialization) throw new CalculationError('星历尚未就绪，请先等待文件加载完成。', 'ephemeris_unavailable');
   await initialization;
   // resolveLocal performs strict date/time/zone and DST overlap/gap validation.
@@ -208,19 +223,41 @@ export async function calculateBirth(payload) {
   try {
     const jd = runtime.utcToJD(local.utcMillis);
     const [sun, moon] = positions(jd);
-    const houses = engine.houses(jd, latitude, longitude, 'E');
-    const ascendant = normalize(houses.ascendant);
+    const planets = { sun, moon };
+    for (const [key, body] of CLASSICAL_PLANETS.slice(2)) planets[key] = runtime.position(jd, body);
+    // Equal is used ONLY as the independent geometric-axes calculation. It
+    // is never presented as the user's house system or used for an 11th cusp.
+    const geometric = engine.houses(jd, latitude, longitude, 'E');
+    const angles = {
+      ascendant: normalize(geometric.ascendant), mc: normalize(geometric.midheaven),
+      descendant: normalize(geometric.ascendant + 180), ic: normalize(geometric.midheaven + 180),
+    };
+    const ascendant = angles.ascendant;
+    let houseCusps = null;
+    if (houseSystemKey !== null) {
+      const selected = engine.houses(jd, latitude, longitude, HOUSE_SYSTEMS[houseSystemKey].code);
+      if (selected.substituted) {
+        throw new CalculationError('所选宫制在这个纬度无法使用。请明确改选其他宫制后再计算，系统不会自动替换宫制。', 'house_system_unavailable');
+      }
+      if (selected.cusps.length !== 12 || !selected.cusps.every(Number.isFinite)) {
+        throw new CalculationError('宫头计算返回了无效数据，请核对出生地点。', 'ephemeris_error');
+      }
+      houseCusps = selected.cusps.map(normalize);
+    }
     const altitude = runtime.altitude(jd, latitude, longitude, sun.values);
     const [eventJD, target] = previousSyzygy(jd);
     const [eventSun, eventMoon] = positions(eventJD);
     const eventMillis = runtime.jdToUTCMillis(eventJD);
-    if (!Number.isFinite(altitude) || !Number.isFinite(ascendant)) throw new Error('invalid axis');
+    if (!Number.isFinite(altitude) || !Object.values(angles).every(Number.isFinite)) throw new Error('invalid axis');
     if (Math.abs(altitude) < 1) warnings.push('太阳接近地平线，出生时间的小幅变化可能改变昼夜判定与名号顺序。');
     if (Math.abs(latitude) >= 66) warnings.push('出生地位于高纬度地区，请特别核对准确时间和坐标；此处使用几何上升点。');
     if (Number(payload.date.slice(0, 4)) < 1900) warnings.push('1900 年以前的民用时间记录可能采用地方平时；请核对所选时区与史料。');
     return {
       sun: normalize(sun.values[0]), moon: normalize(moon.values[0]), ascendant,
       syzygy: normalize(eventMoon.values[0]), sect: altitude >= 0 ? 'day' : 'night',
+      positions: Object.fromEntries(CLASSICAL_PLANETS.map(([key]) => [key, normalize(planets[key].values[0])])),
+      angles, mc: angles.mc, descendant: angles.descendant, ic: angles.ic,
+      houseCusps, eleventhCusp: houseCusps?.[10] ?? null,
       meta: {
         birth_local: local.localISO, birth_utc: local.utcISO,
         timezone: payload.timezone, timezone_data: `tzdata ${getTimezoneVersion()}`,
@@ -232,7 +269,9 @@ export async function calculateBirth(payload) {
         syzygy_utc: utcISO(eventMillis),
         syzygy_sun: normalize(eventSun.values[0]), syzygy_moon: normalize(eventMoon.values[0]),
         engine: `Swiss Ephemeris ${engine.version} WebAssembly（Swiss 星历文件）`,
-        ephemeris_flags: { sun: sun.flags, moon: moon.flags, syzygy_sun: eventSun.flags, syzygy_moon: eventMoon.flags },
+        ephemeris_flags: { ...Object.fromEntries(CLASSICAL_PLANETS.map(([key]) => [key, planets[key].flags])), syzygy_sun: eventSun.flags, syzygy_moon: eventMoon.flags },
+        house_system: houseSystemKey,
+        house_system_name: houseSystemKey === null ? '未选择（仅计算四角）' : HOUSE_SYSTEMS[houseSystemKey].label,
         zodiac: '回归黄道，地心视位置', julian_day_ut: jd, syzygy_julian_day_ut: eventJD,
       },
       warnings,

@@ -4,26 +4,68 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>守护天使名号计算器｜潮汐纪年社</title>
+  <title>守护天使名号工具箱｜潮汐纪年社</title>
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./src/style.css">
   <script type="module" src="./src/app.js"></script>
 </head>
 <body>
-  <a class="skip-link" href="#calculator">跳到计算器</a>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
   <div class="production-alert" role="status">潮汐纪年社出品</div>
   <header class="page-header">
     <a class="brand" href="./" aria-label="潮汐纪年社计算器首页"><img src="./assets/mark.svg" alt="" width="34" height="34"><span>潮汐纪年社<span class="brand-sub">星盘取名工具</span></span></a>
     <div class="header-actions"><button class="text-button" id="help-button" type="button">使用说明 <span aria-hidden="true">?</span></button><button class="contact-button" id="contact-button" type="button" aria-haspopup="dialog">联系我们</button></div>
   </header>
-  <main>
+  <main id="main-content" tabindex="-1">
+    <section id="home-view" aria-labelledby="home-title">
+      <div class="home-intro">
+        <div><p class="intro-note">选择取字方法</p><h1 id="home-title">守护天使名号工具箱</h1><p class="home-copy">点开一个抽屉，选择要用的方法。<br>每种方法都保留取字依据与计算记录。</p></div>
+        <p class="home-local-note"><span class="local-dot" aria-hidden="true"></span>浏览器内计算<span>输入资料仅用于本次计算</span></p>
+      </div>
+      <nav class="method-cabinet" aria-label="守护天使名号取字方法">
+        <details class="method-drawer" data-method="five" open>
+          <summary><span class="drawer-number" aria-hidden="true">01</span><h2 class="drawer-title">五生命点取字</h2><span class="drawer-tag">出生星盘</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
+          <div class="drawer-body"><p>从太阳、月亮、上升、福点与出生前朔望取字，查看五个点位怎样组成名号。</p><a class="drawer-enter" href="?method=five">进入五生命点取字<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+        </details>
+        <details class="method-drawer" data-method="ascendant">
+          <summary><span class="drawer-number" aria-hidden="true">02</span><h2 class="drawer-title">命主星法</h2><span class="drawer-tag">出生星盘</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
+          <div class="drawer-body"><p>由上升星座确定它的守护星，再以这颗行星的实际位置取字。</p><a class="drawer-enter" href="?method=ascendant">进入命主星法<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+        </details>
+        <details class="method-drawer" data-method="moon">
+          <summary><span class="drawer-number" aria-hidden="true">03</span><h2 class="drawer-title">月座法</h2><span class="drawer-tag">出生星盘</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
+          <div class="drawer-body"><p>沿黄道找到月亮所在星座的下一个星座，再使用该星座守护星的位置取字。</p><a class="drawer-enter" href="?method=moon">进入月座法<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+        </details>
+        <details class="method-drawer" data-method="angles">
+          <summary><span class="drawer-number" aria-hidden="true">04</span><h2 class="drawer-title">角宫法</h2><span class="drawer-tag">出生星盘</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
+          <div class="drawer-body"><p>对上升、天底、下降、天顶四个角点计算本质尊贵，分别保留并列候选。</p><a class="drawer-enter" href="?method=angles">进入角宫法<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+        </details>
+        <details class="method-drawer" data-method="eleventh">
+          <summary><span class="drawer-number" aria-hidden="true">05</span><h2 class="drawer-title">第十一宫法</h2><span class="drawer-tag">出生星盘</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
+          <div class="drawer-body"><p>使用第十一宫宫主星，或按宫头度数计算尊贵，核对选星与构名的全过程。</p><a class="drawer-enter" href="?method=eleventh">进入第十一宫法<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+        </details>
+        <details class="method-drawer" data-method="name">
+          <summary><span class="drawer-number" aria-hidden="true">06</span><h2 class="drawer-title">姓名计算法</h2><span class="drawer-tag drawer-tag-sage">姓名输入</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
+          <div class="drawer-body"><p>以你确定的姓名字母拼写逐字加权，核对数值拆分与名号组成。</p><a class="drawer-enter" href="?method=name">进入姓名计算法<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+        </details>
+        <details class="method-drawer" data-method="almuten">
+          <summary><span class="drawer-number" aria-hidden="true">07</span><h2 class="drawer-title">胜利星取字</h2><span class="drawer-tag drawer-tag-sage">手动选星</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
+          <div class="drawer-body"><p>先按课堂采用的规则确定胜利星，再手动选择这颗星，继续完成取字与名号组合。</p><a class="drawer-enter" href="?method=almuten">进入胜利星取字<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+        </details>
+        <details class="method-drawer" data-method="luminary">
+          <summary><span class="drawer-number" aria-hidden="true">08</span><h2 class="drawer-title">日月取字</h2><span class="drawer-tag drawer-tag-sage">手动选星</span><span class="drawer-pull" aria-hidden="true"><span></span></span></summary>
+          <div class="drawer-body"><p>按课堂采用的日月取字规则，手动选择所用星体，再查看对应字母与组合记录。</p><a class="drawer-enter" href="?method=luminary">进入日月取字<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></a></div>
+        </details>
+      </nav>
+    </section>
+    <section id="tool-view" aria-labelledby="tool-title" hidden>
     <div class="intro">
-      <div><p class="intro-note">五生命点取字法</p><h1>守护天使名号计算器</h1><p class="intro-copy">从出生星盘的五个点位取字，查看名号与完整计算过程。</p></div>
-      <p class="local-note"><span class="local-dot" aria-hidden="true"></span>浏览器内计算<span>出生资料仅用于本次计算</span></p>
+      <div><a class="back-link" href="./"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5m6-6-6 6 6 6"/></svg>返回方法导航</a><p class="intro-note" id="tool-note">五生命点取字法</p><h1 id="tool-title">守护天使名号计算器</h1><p class="intro-copy" id="tool-copy">从出生星盘的五个点位取字，查看名号与完整计算过程。</p></div>
+      <p class="local-note"><span class="local-dot" aria-hidden="true"></span>浏览器内计算<span>输入资料仅用于本次计算</span></p>
     </div>
     <div class="workspace" id="calculator">
       <section class="input-panel" aria-label="计算资料">
-        <div class="input-panel-top"><div class="input-panel-label">星盘资料</div>
+        <div id="method-settings" class="method-settings"></div>
+        <div class="input-panel-top"><div class="input-panel-label">星盘资料<span class="zodiac-note">回归黄道 · 地心视位置</span></div>
         <div class="tabs" role="tablist" aria-label="输入方式">
           <button id="tab-auto" class="tab active" role="tab" aria-selected="true" aria-controls="panel-auto" tabindex="0">出生资料<span>自动排盘</span></button>
           <button id="tab-manual" class="tab" role="tab" aria-selected="false" aria-controls="panel-manual" tabindex="-1">手动点位<span>核对星盘</span></button>
@@ -63,17 +105,18 @@
         <form id="manual-form" novalidate hidden>
           <div id="panel-manual" role="tabpanel" aria-labelledby="tab-manual">
             <div class="form-heading"><h2>填写星盘点位</h2><button class="small-link" id="manual-example" type="button">填入课堂示例</button></div>
-            <p class="form-description">使用回归黄道位置。福点由太阳、月亮、上升与昼夜自动计算。</p>
+            <p class="form-description" id="manual-description">使用回归黄道位置。福点由太阳、月亮、上升与昼夜自动计算。</p>
             <fieldset class="sect-control"><legend>出生昼夜</legend><label><input type="radio" name="sect" value="day" checked>昼生</label><label><input type="radio" name="sect" value="night">夜生</label></fieldset>
             <div class="point-column-head" aria-hidden="true"><span>点位</span><span>星座</span><span>度</span><span>分</span><span>秒</span></div>
             <div id="point-inputs"></div>
-            <p class="field-hint manual-hint">朔望点填写出生前最近一次新月或满月时的<strong>月亮位置</strong>。查字时向下取累计整数度。</p>
+            <p class="field-hint manual-hint" id="manual-hint">朔望点填写出生前最近一次新月或满月时的<strong>月亮位置</strong>。查字时向下取累计整数度。</p>
             <button class="primary-button" id="manual-submit" type="submit"><span>计算名号</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M6 6l12 12M6 18 18 6"/></svg></button>
           </div>
         </form>
+        <form id="name-form" novalidate hidden></form>
         <div id="form-error" class="form-error" role="alert" tabindex="-1" hidden></div>
         <p id="busy-status" class="busy-status" role="status" aria-live="polite"></p>
-        <div class="method-footnote"><span>本次使用的规则</span><p>五点取字，昼夜排序，固定添加 <bdi dir="rtl" lang="he">אל</bdi>（el）后缀。</p></div>
+        <div class="method-footnote"><span>本次使用的规则</span><p id="rules-copy">五点取字，昼夜排序，固定添加 <bdi dir="rtl" lang="he">אל</bdi>（el）后缀。</p></div>
       </section>
       <section class="result-panel" aria-label="计算结果" aria-live="polite" aria-busy="false">
         <div id="empty-state" class="empty-state">
@@ -81,8 +124,8 @@
             <svg viewBox="0 0 260 260"><circle cx="130" cy="130" r="100"/><circle cx="130" cy="130" r="78"/><path d="m130 30 59 181L35 99h190L71 211Z"/><circle cx="130" cy="30" r="5"/><circle cx="225" cy="99" r="5"/><circle cx="189" cy="211" r="5"/><circle cx="71" cy="211" r="5"/><circle cx="35" cy="99" r="5"/></svg>
             <span class="diagram-sun">太阳</span><span class="diagram-moon">月亮</span><span class="diagram-asc">上升</span><span class="diagram-fortune">福点</span><span class="diagram-syzygy">朔望</span><strong>五点成名</strong>
           </div>
-          <h2>名号将从这里展开</h2>
-          <p>填写上方资料，或先试用示例。<br>结果会保留每个点位、字母与取字顺序。</p>
+          <h2 id="empty-title">名号将从这里展开</h2>
+          <p id="empty-copy">填写上方资料，或先试用示例。<br>结果会保留每个点位、字母与取字顺序。</p>
           <div class="empty-steps"><span>出生星盘</span><i aria-hidden="true"></i><span>五点取字</span><i aria-hidden="true"></i><span>组合名号</span></div>
         </div>
         <div id="result" hidden>
@@ -97,21 +140,22 @@
           </div>
           <div class="result-record-region">
           <div class="calculation-record">
-            <div class="record-heading"><h3>五生命点取字记录</h3><span>累计度数向下取整</span></div>
-            <div class="table-scroll"><table><caption class="sr-only">五生命点位置及对应字母</caption><thead><tr><th scope="col">点位</th><th scope="col">黄道位置</th><th scope="col">累计整数度</th><th scope="col">字母</th><th scope="col">数值</th></tr></thead><tbody id="points-table"></tbody></table></div>
-            <div class="formula-note"><span>福点计算</span><p id="fortune-formula"></p><span id="order-note"></span></div>
+            <div class="record-heading"><h3 id="record-title">五生命点取字记录</h3><span id="record-caption">累计度数向下取整</span></div>
+            <div class="table-scroll"><table><caption class="sr-only">取字位置及对应字母</caption><thead><tr><th scope="col">点位</th><th scope="col">黄道位置</th><th scope="col">累计整数度</th><th scope="col">字母</th><th scope="col">数值</th></tr></thead><tbody id="points-table"></tbody></table></div>
+            <div class="formula-note"><span id="formula-label">福点计算</span><p id="fortune-formula"></p><span id="order-note"></span></div>
           </div>
           <details class="meta-details" id="meta-details"><summary>查看排盘与朔望资料</summary><dl id="chart-meta"></dl></details>
           </div>
-          <div class="result-watermark" aria-label="潮汐纪年社水印"><img src="./assets/tidal-watermark.png" alt="潮汐纪年社" width="240" height="96"></div>
+          <div class="result-watermark" aria-label="潮汐纪年社水印"><img src="./assets/tidal-watermark.png" alt="潮汐纪年社" width="240" height="96" loading="lazy"></div>
         </div>
       </section>
     </div>
-    <footer class="page-footer"><p>潮汐纪年社 · 五生命点取字法</p><p>计算在本机完成，不建立出生资料档案。 <a href="./licenses.html" target="_blank" rel="noopener">源码与许可</a></p></footer>
+    </section>
+    <footer class="page-footer"><p>潮汐纪年社 · 守护天使名号工具箱</p><p>计算在本机完成，不建立资料档案。 <a href="./licenses.html" target="_blank" rel="noopener">源码与许可</a></p></footer>
   </main>
   <dialog id="help-dialog" aria-labelledby="help-title">
     <div class="dialog-heading"><h2 id="help-title">怎样使用</h2><button class="icon-button" id="close-help" aria-label="关闭使用说明" type="button">×</button></div>
-    <div class="help-content"><h3>出生资料模式</h3><p>填写公历日期、当地钟表时间，搜索并选择出生城市。系统自动取得日月与上升，判断昼夜，并查找出生前最近一次精确的新月或满月。</p><p>城市坐标取自城市中心。需要更细的出生地时，在“查看或调整经纬度与时区”中修改。时区使用历史地区时区，不要自行先减去夏令时。</p><h3>手动点位模式</h3><p>从排盘软件抄入太阳、月亮、上升，以及出生前最近一次朔望时的月亮位置。选择昼生或夜生，系统自动计算福点。尽量保留原始精度；从结果页显示的度分秒重新抄入时，福点可能因精度变化跨过整度。</p><h3>名号怎样组成</h3><p>五个点位先换算成自白羊座 0° 起的累计黄经，向下取整数，再对照循环排列的 22 个希伯来字母。昼生依太阳、月亮、上升、福点、朔望排序；夜生交换前两位，最后添加 el 后缀，重复字母照常保留。</p><h3>保存与隐私</h3><p>可以保存结果图片、打印或存为 PDF，也可以复制计算记录。输入只保留在当前页面内，刷新后清空；系统不把出生资料发送到外部服务。</p><p class="data-credit">城市资料：<a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a>，采用 <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>。主要覆盖人口超过 1.5 万的城市。</p></div>
+    <div class="help-content"><h3>从方法抽屉开始</h3><p>在首页展开一个方法抽屉，查看说明并进入。星盘方法支持填写出生资料自动取得位置，也支持手动抄入点位；姓名法使用独立的字母输入。</p><h3>选星与起算点</h3><p>五生命点法直接按五个位置构名。单星方法先选出用于取字的行星，再取一个根字母并添加 el。可以从上升所在整数行或白羊座 0° 起布字，结果会记录实际采用的起点。</p><p>胜利星与日月取字需要你手动选星。角宫使用四角点的本质尊贵计分；第十一宫可以选择宫主星或宫头计分。并列最高分会分别生成候选名，不合并成一个名字。</p><h3>出生资料与手动点位</h3><p>填写公历日期、当地钟表时间并选择城市，历史时区会自动处理夏令时。坐标可手动调整。第十一宫自动计算需要选择与你原星盘一致的宫制。手动模式只需填写当前显示的点位。</p><h3>姓名计算</h3><p>请先确定完整的字母拼写，系统不会自行把中文转拼音或笔画数。逐字加权、扣除后缀、数值拆分和构名字母均列入结果。拆数采用页面注明的实现约定，也支持手动填写拆分以核对。</p><h3>保存与隐私</h3><p>结果可以保存为带潮汐纪年社水印的图片、打印或复制。资料只保留在当前页面内，刷新后清空；计算不会把出生资料或姓名发送到外部服务。</p><p class="data-credit">城市资料：<a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a>，采用 <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>。主要覆盖人口超过 1.5 万的城市。</p></div>
   </dialog>
   <dialog id="contact-dialog" aria-labelledby="contact-title">
     <div class="dialog-heading"><h2 id="contact-title">联系我们</h2><button class="icon-button" id="close-contact" aria-label="关闭联系我们" type="button" autofocus>×</button></div>

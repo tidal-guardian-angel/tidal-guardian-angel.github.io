@@ -221,3 +221,15 @@ export function calculateName(input) {
     warnings,
   };
 }
+
+// Shared exact-coordinate primitives. Exporting these does not change the
+// original five-point calculation or its existing return values.
+export {
+  coordinate as parseCoordinate,
+  formatted as formatCoordinate,
+  toNumber as coordinateToNumber,
+  letter as lookupLetter,
+  rational as makeRational,
+  add as addCoordinates,
+  moduloCircle as normalizeCoordinate,
+};
