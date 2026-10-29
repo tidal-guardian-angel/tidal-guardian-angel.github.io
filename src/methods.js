@@ -1,5 +1,5 @@
 /**
- * Additional course methods, HGA Lesson 2 pp. 3–4 and 10–21 / current PPT
+ * Additional naming methods, HGA Lesson 2 pp. 3–4 and 10–21 / source slides
  * slides 48–56 and 64–65. Each selected planet supplies one root letter.
  * Scoring selects planets; a score is never used as a letter-table position.
  * Name-number conventions not uniquely specified by the lesson are surfaced.
@@ -27,7 +27,7 @@ const TRIPLICITIES = [
   ['saturn', 'mercury', 'jupiter'], ['venus', 'mars', 'moon'],
 ];
 // Original PDF p. 9, cumulative upper limits. Do not substitute a different
-// table called "Egyptian": e.g. the course's Aries limits are 6/12/20/25/30.
+// table called "Egyptian": this version's Aries limits are 6/12/20/25/30.
 const BOUNDS = [
   [['jupiter', 6], ['venus', 12], ['mercury', 20], ['mars', 25], ['saturn', 30]],
   [['venus', 8], ['mercury', 14], ['jupiter', 22], ['saturn', 27], ['mars', 30]],
@@ -51,7 +51,9 @@ const VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 1
 const HEBREW_EXTENDED = [...'אבגדהוזחטיכלמנסעפצקרשתךםןףץ'];
 const ARABIC = [...'ابجدهوزحطيكلمنسعفصقرشتثخذضظغ'];
 const ARABIC_NAMES = ['Alif', 'Ba', 'Jim', 'Dal', 'Ha', 'Waw', 'Zay', 'Ha (ح)', 'Ta (ط)', 'Ya', 'Kaf', 'Lam', 'Mim', 'Nun', 'Sin', 'Ayn', 'Fa', 'Sad', 'Qaf', 'Ra', 'Shin', 'Ta (ت)', 'Tha', 'Kha', 'Dhal', 'Dad', 'Za', 'Ghayn'];
-const NAME_CONVENTION = '完整姓名去除空白、连字符和撇号后，从1连续加权；百、十、个位分解，11—19按10加个位；千位先拆商，再记1000，最后拆余数。此为公开的课程实现约定。';
+const NAME_CONVENTION = '完整姓名去除空白、连字符和撇号后，从1连续加权；百、十、个位分解，11—19按10加个位；千位先拆商，以1000记录乘数，最后拆余数。这是本站公开的计算约定。';
+const SCRIPT_LABELS = { latin: '拉丁字母', hebrew: '希伯来字母', arabic: '阿拉伯字母' };
+const GERESH = '\u05f3';
 
 function record(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -81,9 +83,9 @@ function suffixLetters(script, suffix) {
 }
 function numberLetter(value, script) {
   const index = VALUES.indexOf(value);
-  if (index < 0) throw new RangeError(`课件数表没有数值 ${value}。`);
+  if (index < 0) throw new RangeError(`字母数值表没有数值 ${value}。`);
   if (script === 'hebrew') {
-    if (value === 1000) throw new RangeError('课件的希伯来数表没有1000对应字母。请改用阿拉伯字母输出，或提供不含1000的有效拆分；不能混用两种文字。');
+    if (value === 1000) throw new RangeError('希伯来输出中的1000须与其前方系数合并为千位组。');
     return hebrewMetadata(HEBREW_EXTENDED[index], value);
   }
   return { hebrew: ARABIC[index], latin: ARABIC_NAMES[index], reading: ARABIC_NAMES[index], value };
@@ -109,8 +111,9 @@ export function applyPronunciation(result) {
   const suffixLength = result.name.suffix === 'ayl' ? 3 : 2;
   const suffix = suffixLength === 3 ? 'ayl' : 'el';
   const roots = letters.slice(0, -suffixLength).map(item => {
-    if (!FIXED_READING[item.hebrew]) throw new RangeError('该字母不在课程固定拼读表中。');
-    return { ...item, reading: FIXED_READING[item.hebrew] };
+    const base = item.baseHebrew ?? item.hebrew;
+    if (!FIXED_READING[base]) throw new RangeError('该字母不在固定拼读表中。');
+    return { ...item, reading: FIXED_READING[base] };
   });
   const warnings = (result.warnings ?? []).filter(message => !message.includes('未提供可唯一采用的完整 22 字母固定赋音表'));
   return { ...result, name: makeName(roots, suffix), warnings };
@@ -228,7 +231,7 @@ function calculatePlanetMethod(input) {
       : `相对上升：(${actualDegree} − ${originDegree} + 360) mod 360 = ${lookupDegree}；查表余数 ${lookupDegree % 22}，对应 ${rootLetter.latin}，加 El。`;
     const warnings = [];
     if (tie) warnings.push('本质尊贵最高分并列，已分别生成全部候选名号；第一项只用于初始展示，不表示自动胜出。');
-    if (triplicity === 'all' && scoring) warnings.push('当前采用三分三主各加3分；课程主练习采用按昼夜只取一主的口径。');
+    if (triplicity === 'all' && scoring) warnings.push('当前采用三分三主各加3分；另一个可选口径为按昼夜只取一主。');
     if ([actual, ...used.map(([, value]) => value), ...(origin === 'ascendant' ? [position('ascendant')] : [])].some(nearBoundary)) warnings.push('相关位置距整度不足1角秒；输入精度变化可能改变先取整数行再相减的结果。');
     const details = [
       ['选星依据', rule], ['所选行星', LABELS[planet]],
@@ -238,7 +241,7 @@ function calculatePlanetMethod(input) {
     ];
     if (used.length) details.push(['选星点位', used.map(([name, value]) => `${LABELS[name]} ${formatCoordinate(value)}`).join('；')]);
     if (scoring) {
-      details.push(['本质尊贵计分', '入庙5、擢升4、三分3、界2、面1；按原讲义埃及界与面。']);
+      details.push(['本质尊贵计分', '入庙5、擢升4、三分3、界2、面1；采用本页所列埃及界与面。']);
       details.push(['三分口径', triplicity === 'sect' ? '按昼夜取一主' : '昼、夜、参与主星各加3分']);
       details.push(['各星合计', scoreText]);
       details.push(['最高分候选', selected.map(item => `${LABELS[item]} ${scoring.maximum}分`).join('、')]);
@@ -274,7 +277,7 @@ function splitNameNumber(number) {
 function checkComponents(components, remainder) {
   if (!Array.isArray(components) || components.length === 0 || components.length > 64
       || components.some(value => typeof value !== 'number' || !Number.isInteger(value) || !VALUES.includes(value))) {
-    throw new RangeError('拆分序列须为课件数表内的正整数数值，最多64项。');
+    throw new RangeError('拆分序列须为字母数值表内的正整数数值，最多64项。');
   }
   const positions = components.map((value, index) => value === 1000 ? index : -1).filter(index => index >= 0);
   if (positions.length > 1) throw new RangeError('拆分序列最多保留一个1000。');
@@ -290,25 +293,64 @@ function checkComponents(components, remainder) {
   return [...components];
 }
 
+function identifyNameScript(characters) {
+  const scripts = new Set();
+  for (const character of characters) {
+    if (/^[A-Za-z]$/.test(character)) scripts.add('latin');
+    else if (HEBREW_EXTENDED.includes(character)) scripts.add('hebrew');
+    else if (ARABIC.includes(character)) scripts.add('arabic');
+    else throw new RangeError(`姓名含不支持的字符“${character}”。请使用A—Z、希伯来或阿拉伯字母；其他文字请自行确认转写，不自动移除附标。`);
+  }
+  if (scripts.size !== 1) {
+    throw new RangeError(`姓名混用了${[...scripts].map(script => SCRIPT_LABELS[script]).join('、')}，请使用同一种字母体系。`);
+  }
+  return [...scripts][0];
+}
+
+function componentExpression(components, remainder) {
+  const marker = components.indexOf(1000);
+  if (marker < 0) return `${components.join(' + ')} = ${remainder}`;
+  const coefficients = components.slice(0, marker);
+  const group = coefficients.length === 1
+    ? `(${coefficients[0]} × 1000)`
+    : `(${coefficients.join(' + ')}) × 1000`;
+  const tail = components.slice(marker + 1);
+  return `${group}${tail.length ? ` + ${tail.join(' + ')}` : ''} = ${remainder}`;
+}
+
+function componentLetters(components, outputScript) {
+  // Arabic keeps its existing one-to-one 1000=غ mapping. In Hebrew the
+  // 1000 token is a multiplier: it consumes no letter or pronunciation.
+  const marker = outputScript === 'hebrew' ? components.indexOf(1000) : -1;
+  if (marker < 0) return components.map(value => numberLetter(value, outputScript));
+  const prefix = components.slice(0, marker).map(value => {
+    const base = numberLetter(value, 'hebrew');
+    return { ...base, baseHebrew: base.hebrew, baseValue: value, scale: 1000, value: value * 1000 };
+  });
+  prefix[prefix.length - 1].hebrew += GERESH;
+  return [...prefix, ...components.slice(marker + 1).map(value => numberLetter(value, 'hebrew'))];
+}
+
 function calculateNumberName(input) {
   const nameInput = input.nameInput;
-  if (!record(nameInput) || typeof nameInput.text !== 'string') throw new TypeError('请填写按课程顺序整理的完整姓名字母。');
-  const { inputScript = 'latin', outputScript = 'hebrew', suffix = 'el' } = nameInput;
-  if (!['latin', 'hebrew', 'arabic'].includes(inputScript)) throw new RangeError('姓名输入字母体系无效。');
+  if (!record(nameInput) || typeof nameInput.text !== 'string') throw new TypeError('请填写按你确定的顺序整理的完整姓名字母。');
+  const { inputScript: requestedInputScript = 'auto', outputScript = 'hebrew', suffix = 'el' } = nameInput;
+  if (!['auto', 'latin', 'hebrew', 'arabic'].includes(requestedInputScript)) throw new RangeError('姓名输入字母体系选项无效。');
   if (!['hebrew', 'arabic'].includes(outputScript)) throw new RangeError('姓名输出须选择希伯来或阿拉伯字母。');
   if (!['el', 'ayl'].includes(suffix)) throw new RangeError('姓名后缀须选择el或ayl。');
   if (nameInput.text.length > 512) throw new RangeError('姓名输入过长，请保留最多40个字母。');
   let normalized = nameInput.text.normalize('NFC').replace(/[\s\-\u2010-\u2015'\u2018\u2019]/gu, '');
+  const rawCharacters = [...normalized];
+  if (!rawCharacters.length || rawCharacters.length > 40) throw new RangeError('请填写1—40个姓名字母。');
+  const inputScript = identifyNameScript(rawCharacters);
   if (inputScript === 'latin') {
-    if (!/^[A-Za-z]+$/.test(normalized)) throw new RangeError('拉丁输入只接受课件A—Z字母；请自行确认中文等姓名的转写，不自动拼音转换。');
     normalized = normalized.toUpperCase();
   }
   const characters = [...normalized];
-  if (!characters.length || characters.length > 40) throw new RangeError('请填写1—40个姓名字母。');
   const alphabet = inputScript === 'latin' ? [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'] : inputScript === 'hebrew' ? HEBREW_EXTENDED : ARABIC;
   const rows = characters.map((character, index) => {
     const letterIndex = alphabet.indexOf(character);
-    if (letterIndex < 0) throw new RangeError(`姓名字母“${character}”不在所选课件数表中；不自动转写或移除附标。`);
+    if (letterIndex < 0) throw new RangeError(`姓名字母“${character}”不在所选字母数值表中。`);
     const value = VALUES[letterIndex];
     const weight = index + 1;
     return { character, value, weight, subtotal: value * weight };
@@ -316,33 +358,44 @@ function calculateNumberName(input) {
   const total = rows.reduce((sum, row) => sum + row.subtotal, 0);
   const suffixValue = suffix === 'ayl' ? 41 : 31;
   const remainder = total - suffixValue;
-  if (remainder <= 0 || remainder >= 1_000_000) throw new RangeError('减去后缀后的数值须大于0且小于1,000,000；当前课件实现不处理零、负数或百万级拆分。');
+  if (remainder <= 0 || remainder >= 1_000_000) throw new RangeError('减去后缀后的数值须大于0且小于1,000,000；当前实现不处理零、负数或百万级拆分。');
   const hasManualComponents = nameInput.components !== undefined;
   const components = checkComponents(hasManualComponents ? nameInput.components : splitNameNumber(remainder), remainder);
-  const roots = components.map(value => numberLetter(value, outputScript));
+  const roots = componentLetters(components, outputScript);
+  const displayExpression = componentExpression(components, remainder);
+  const hasHebrewThousands = outputScript === 'hebrew' && components.includes(1000);
   const name = makeName(roots, suffix, outputScript);
   name.suffix = suffix;
-  const warnings = [NAME_CONVENTION, '原讲义示例只明确41854→40、1、1000、800、50、4；当前通用分解与连续权重均公开记录，允许人工提供有效拆分复核。'];
-  if (outputScript === 'arabic') warnings.push('阿拉伯输出采用课件大数表；辅助读法列字母名，不把希伯来固定元音表直接套用到阿拉伯文字。');
-  if (outputScript === 'hebrew' && components.some(value => value >= 500)) warnings.push('本结果按课件扩展数值使用500—900的词尾字形，是数值构名记录。');
+  const warnings = ['连续加权与拆数使用本站约定，可手动填写拆分复核。'];
+  if (hasHebrewThousands) warnings.push('希伯来千位组以׳标记乘1000；标记不算额外字母、不参与拼读。这是本站的大数书写约定。');
+  if (outputScript === 'arabic') warnings.push('阿拉伯输出采用大数表；辅助读法列字母名。');
+  if (outputScript === 'hebrew' && components.some(value => value >= 500 && value <= 900)) warnings.push('本结果按扩展数值使用500—900的词尾字形。');
   const formula = `Σ(字母数值 × 连续序号) = ${total}；${total} − ${suffixValue} = ${remainder}；拆分 ${components.join(' · ')}，映射后加回 ${suffix}。`;
   const result = {
     name, points: [], order: [], sect: null, method: METHOD_LABELS.name, methodKey: 'name',
     warnings, formula,
     details: [
-      ['姓名顺序', '按课程指定次序预先整理完整姓名，再输入；网站不推断父母姓名顺序或中文转写。'],
-      ['输入字母体系', inputScript], ['整理后字母', normalized], ['权重', '从1连续计数，忽略空白、连字符、撇号，不按姓名字段重置。'],
+      ['姓名顺序', '按你确定的次序整理完整姓名再输入；网站不推断父母姓名顺序或中文转写。'],
+      ['输入字母体系', `自动识别：${SCRIPT_LABELS[inputScript]}`], ['整理后字母', normalized], ['权重', '从1连续计数，忽略空白、连字符、撇号，不按姓名字段重置。'],
       ['计算', formula], ['拆分来源', hasManualComponents ? '人工提供并校验还原值' : '本网站明确标注的百/十/千分解约定'],
-      ['输出字母体系', outputScript === 'hebrew' ? '希伯来大数表（500—900为词尾形，1000无映射）' : '阿拉伯大数表（含1000）'],
+      ['数值还原', displayExpression],
+      ...(hasHebrewThousands ? [['大数书写', '1000作为前方整组的乘数；组末附加׳，各根字母记录基础值与千位倍数，符号不另取字或发音。']] : []),
+      ['输出字母体系', outputScript === 'hebrew' ? '希伯来大数表（500—900为词尾形，千位组以׳标记）' : '阿拉伯大数表（含1000）'],
       ['实现约定', NAME_CONVENTION],
     ],
     selection: { rule: '按完整姓名的字母数值及连续权重计算，不使用出生星盘。' },
-    nameCalculation: { letters: rows, total, suffixValue, remainder, components, convention: NAME_CONVENTION, inputScript, outputScript, suffix, normalizedText: normalized, manualComponents: hasManualComponents },
+    nameCalculation: {
+      letters: rows, total, suffixValue, remainder, components,
+      convention: NAME_CONVENTION, inputScript, detectedInputScript: inputScript, requestedInputScript,
+      outputScript, suffix, normalizedText: normalized, manualComponents: hasManualComponents,
+      displayExpression, restoredExpression: displayExpression,
+      rootLetterCount: roots.length, thousandsNotation: hasHebrewThousands ? 'hebrew-geresh' : null,
+    },
   };
   return combineCandidates([result]);
 }
 
 export function calculateMethod(input) {
-  if (!record(input) || !Object.hasOwn(METHOD_LABELS, input.method)) throw new RangeError('请选择受支持的课程取字法。');
+  if (!record(input) || !Object.hasOwn(METHOD_LABELS, input.method)) throw new RangeError('请选择受支持的取字法。');
   return input.method === 'name' ? calculateNumberName(input) : calculatePlanetMethod(input);
 }

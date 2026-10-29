@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { calculateMethod, applyPronunciation } from '../src/methods.js';
 import { calculateName } from '../src/naming.js';
 
@@ -180,7 +181,10 @@ test('thousand split preserves numeric structure rather than summing the tokens'
   assert.deepEqual(result.nameCalculation.components, [100, 4, 1000, 900, 60, 9]);
   assert.equal((100 + 4) * 1000 + 900 + 60 + 9, result.nameCalculation.remainder);
   assert.ok(result.name.hebrew.includes('غ'));
-  assert.throws(() => calculateMethod(numberInput({ text: 'W'.repeat(20), outputScript: 'hebrew' })), /没有1000/);
+  const hebrew = calculateMethod(numberInput({ text: 'W'.repeat(20), outputScript: 'hebrew' }));
+  assert.equal(hebrew.name.hebrew, 'קד׳ץסטאל');
+  assert.deepEqual(hebrew.name.letters.slice(0, 2).map(letter => [letter.baseValue, letter.scale, letter.value]), [[100, 1000, 100000], [4, 1000, 4000]]);
+  assert.equal(hebrew.name.letters.slice(0, -2).reduce((sum, letter) => sum + letter.value, 0), 104969);
 });
 
 test('the original lesson 41854 decomposition generates a complete single-script Arabic name', () => {
@@ -205,6 +209,120 @@ test('manual component overrides must restore the remainder and preserve a singl
   }
   const thousand = calculateMethod(numberInput({ text: 'W'.repeat(20), components: [100, 4, 1000, 900, 60, 9] }));
   assert.equal(thousand.nameCalculation.remainder, 104969);
+});
+
+test('MOSONGRUI is recognized as Latin despite an old Arabic selector and completes Hebrew output', () => {
+  const result = calculateMethod(numberInput({ text: 'MOSONGRUI', inputScript: 'arabic', outputScript: 'hebrew' }));
+  assert.equal(result.nameCalculation.inputScript, 'latin');
+  assert.equal(result.nameCalculation.detectedInputScript, 'latin');
+  assert.equal(result.nameCalculation.requestedInputScript, 'arabic');
+  assert.equal(result.nameCalculation.total, 4103);
+  assert.equal(result.nameCalculation.remainder, 4072);
+  assert.deepEqual(result.nameCalculation.components, [4, 1000, 70, 2]);
+  assert.equal(result.nameCalculation.displayExpression, '(4 × 1000) + 70 + 2 = 4072');
+  assert.equal(result.nameCalculation.restoredExpression, result.nameCalculation.displayExpression);
+  assert.equal(result.name.hebrew, 'ד׳עבאל');
+  assert.equal(result.name.reading, 'Da · Ea · Beh · El');
+  assert.equal(result.name.pronunciation, 'Daeabehel');
+  assert.equal(result.name.script, 'he');
+  assert.equal(result.nameCalculation.rootLetterCount, 3);
+  assert.equal(result.name.letters.length, 5);
+  assert.deepEqual(result.name.letters[0], { hebrew: 'ד׳', latin: 'Daleth', reading: 'Da', value: 4000, baseHebrew: 'ד', baseValue: 4, scale: 1000 });
+  assert.equal(result.name.letters.slice(0, -2).reduce((sum, letter) => sum + letter.value, 0), 4072);
+  assert.equal(result.name.letters.reduce((sum, letter) => sum + letter.value, 0), 4103);
+  assert.doesNotMatch(result.name.hebrew, /[\u0600-\u06ff]/u);
+  assert.ok(result.details.some(([label, value]) => label === '输入字母体系' && value === '自动识别：拉丁字母'));
+  assert.ok(result.warnings.some(message => message.includes('标记不算额外字母')));
+  assert.ok(result.warnings.every(message => message.length < 90));
+  assert.equal(applyPronunciation(result).name.reading, result.name.reading);
+  assert.doesNotThrow(() => JSON.stringify(result));
+});
+
+test('name input defaults to actual-script detection and Hebrew output', () => {
+  const result = calculateMethod({ method: 'name', nameInput: { text: 'mosongrui' } });
+  assert.equal(result.nameCalculation.inputScript, 'latin');
+  assert.equal(result.nameCalculation.requestedInputScript, 'auto');
+  assert.equal(result.nameCalculation.normalizedText, 'MOSONGRUI');
+  assert.equal(result.name.hebrew, 'ד׳עבאל');
+});
+
+test('Hebrew and Arabic characters override stale selector values without transliteration', () => {
+  const hebrew = calculateMethod(numberInput({ text: 'םכא', inputScript: 'arabic', outputScript: 'hebrew' }));
+  assert.equal(hebrew.nameCalculation.inputScript, 'hebrew');
+  assert.equal(hebrew.nameCalculation.total, 643);
+  assert.deepEqual(hebrew.nameCalculation.letters.map(letter => letter.character), [...'םכא']);
+  const arabic = calculateMethod(numberInput({ text: 'خكا', inputScript: 'latin' }));
+  assert.equal(arabic.nameCalculation.inputScript, 'arabic');
+  assert.equal(arabic.nameCalculation.total, 643);
+  assert.equal(arabic.name.hebrew, 'خيبال');
+});
+
+test('mixed scripts and unsupported letters are identified instead of guessed or removed', () => {
+  for (const text of ['MOSא', 'MOSا', 'םخ', 'Aאا']) {
+    assert.throws(() => calculateMethod(numberInput({ text, inputScript: 'auto' })), /混用了/);
+  }
+  for (const [text, character] of [['MOS0NG', '0'], ['MÖSONG', 'Ö'], ['שָם', 'ָ'], ['أحمد', 'أ'], ['ß', 'ß'], ['中文', '中']]) {
+    assert.throws(() => calculateMethod(numberInput({ text })), error => error.message.includes(`“${character}”`) && error.message.includes('不支持'));
+  }
+});
+
+test('41854 scales every letter of the thousand coefficient and places Geresh at group end', () => {
+  const text = `Q${'A'.repeat(27)}XZ`;
+  const automatic = calculateMethod(numberInput({ text, outputScript: 'hebrew' }));
+  assert.equal(automatic.nameCalculation.remainder, 41854);
+  assert.deepEqual(automatic.nameCalculation.components, [40, 1, 1000, 800, 50, 4]);
+  assert.equal(automatic.nameCalculation.displayExpression, '(40 + 1) × 1000 + 800 + 50 + 4 = 41854');
+  assert.equal(automatic.name.hebrew, 'מא׳ףנדאל');
+  assert.deepEqual(automatic.name.letters.slice(0, 2).map(letter => [letter.hebrew, letter.baseHebrew, letter.baseValue, letter.scale, letter.value]), [['מ', 'מ', 40, 1000, 40000], ['א׳', 'א', 1, 1000, 1000]]);
+  assert.equal(automatic.name.letters.slice(0, -2).reduce((sum, letter) => sum + letter.value, 0), 41854);
+  assert.equal(automatic.nameCalculation.rootLetterCount, 5);
+  assert.equal(automatic.name.letters.length, 7);
+  assert.equal([...automatic.name.hebrew].filter(character => character === '׳').length, 1);
+  const manual = calculateMethod(numberInput({ text, outputScript: 'hebrew', components: [40, 1, 1000, 800, 50, 4] }));
+  assert.equal(manual.nameCalculation.manualComponents, true);
+  assert.deepEqual(manual.name, automatic.name);
+});
+
+test('manual MOSONGRUI thousand group and additive overrides both preserve the stated value', () => {
+  const common = { text: 'MOSONGRUI', inputScript: 'arabic', outputScript: 'hebrew' };
+  const marked = calculateMethod(numberInput({ ...common, components: [4, 1000, 70, 2] }));
+  assert.equal(marked.name.hebrew, 'ד׳עבאל');
+  assert.equal(marked.nameCalculation.manualComponents, true);
+  const additive = calculateMethod(numberInput({ ...common, components: [900, 900, 900, 900, 400, 70, 2] }));
+  assert.equal(additive.nameCalculation.displayExpression, '900 + 900 + 900 + 900 + 400 + 70 + 2 = 4072');
+  assert.equal(additive.nameCalculation.thousandsNotation, null);
+  assert.equal(additive.name.letters.slice(0, -2).reduce((sum, letter) => sum + letter.value, 0), 4072);
+  assert.doesNotMatch(additive.name.hebrew, /׳/u);
+});
+
+test('Arabic 1000 remains a letter and stale script input no longer blocks the same calculation', () => {
+  const old = calculateMethod(numberInput({ text: 'MOSONGRUI', inputScript: 'latin' }));
+  const stale = calculateMethod(numberInput({ text: 'MOSONGRUI', inputScript: 'arabic' }));
+  assert.deepEqual(stale.name, old.name);
+  assert.equal(stale.name.hebrew, 'دغعبال');
+  assert.equal(stale.name.letters.length, 6);
+  assert.equal(stale.name.letters[1].value, 1000);
+  assert.equal(stale.name.letters[1].hebrew, 'غ');
+  assert.equal(stale.nameCalculation.rootLetterCount, 4);
+  assert.equal(stale.nameCalculation.thousandsNotation, null);
+});
+
+test('thousand-marker handling adds no pronunciation or independent root-letter element', () => {
+  const result = calculateMethod(numberInput({ text: 'MOSONGRUI', outputScript: 'hebrew', suffix: 'ayl' }));
+  assert.equal(result.nameCalculation.remainder, 4062);
+  assert.equal(result.name.hebrew, 'ד׳סבאיל');
+  assert.equal(result.name.reading, 'Da · Sa · Beh · Ayl');
+  assert.equal(result.nameCalculation.rootLetterCount, 3);
+  assert.equal(result.name.letters.length, 6);
+  assert.equal(result.name.letters.filter(letter => letter.value === 1000).length, 0);
+});
+
+test('method messages and details use neutral site wording', () => {
+  const source = readFileSync(new URL('../src/methods.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /课程|课件|课堂|讲义|本课|课内/u);
+  const result = calculateMethod(numberInput({ text: 'MOSONGRUI', outputScript: 'hebrew' }));
+  assert.doesNotMatch(JSON.stringify(result), /课程|课件|课堂|讲义|本课|课内/u);
+  assert.ok(result.warnings.every(message => message !== result.nameCalculation.convention));
 });
 
 test('invalid method options, missing coordinates, nonfinite/bool DMS and name contracts are rejected', () => {

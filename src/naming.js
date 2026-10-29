@@ -196,7 +196,7 @@ export function calculateName(input) {
   const letters = [...rootLetters, letter(0), letter(11)];
   const letterNames = rootLetters.map(item => item.latin).join(' · ');
   const warnings = [
-    '当前读音展示为字母名称的辅助拼读。课程资料未提供可唯一采用的完整 22 字母固定赋音表。',
+    '当前读音展示为字母名称的辅助拼读，未提供可唯一采用的完整 22 字母固定赋音表。',
   ];
   const nearBoundary = points.filter(point => {
     const { n, d } = coordinates[point.key];

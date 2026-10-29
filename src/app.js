@@ -97,10 +97,10 @@ function renderSettings(){
     html+=selectField('letter-origin','字母起算点',[['ascendant','从上升所在整数行起布字'],['aries','从白羊座 0° 起布字']],'相对上升时，分别取行星与上升所在整数行，再计算顺行差。');
     if(method==='eleventh'){
       html+=selectField('eleventh-selection','第十一宫取星方式',[['ruler','第十一宫的本垣宫主星'],['dignity','第十一宫宫头的尊贵计分']]);
-      html+='<div id="house-system-field">'+selectField('house-system','排盘宫制',[['','请选择与你的排盘一致的宫制'],['porphyry','波菲利制 Porphyry'],['regiomontanus','雷吉奥蒙塔努斯制 Regiomontanus'],['placidus','普拉西德制 Placidus'],['whole','整宫制 Whole Sign']],'宫制会影响十一宫宫头，请按你的课程或原星盘选择。')+'</div>';
+      html+='<div id="house-system-field">'+selectField('house-system','排盘宫制',[['','请选择与你的排盘一致的宫制'],['porphyry','波菲利制 Porphyry'],['regiomontanus','雷吉奥蒙塔努斯制 Regiomontanus'],['placidus','普拉西德制 Placidus'],['whole','整宫制 Whole Sign']],'宫制会影响十一宫宫头，请按你的原星盘选择。')+'</div>';
     }
     if(method==='angles'||method==='eleventh'){
-      html+='<div id="triplicity-field">'+selectField('triplicity-choice','三分主星计分',[['sect','按昼夜当令主星计 3 分'],['all','昼、夜、共管主星各计 3 分']],'采用课件的多罗修斯三分、埃及界与面；入庙 5、耀升 4、三分 3、界 2、面 1。')+'</div>';
+      html+='<div id="triplicity-field">'+selectField('triplicity-choice','三分主星计分',[['sect','按昼夜当令主星计 3 分'],['all','昼、夜、共管主星各计 3 分']],'采用多罗修斯三分、埃及界与面；入庙 5、耀升 4、三分 3、界 2、面 1。')+'</div>';
     }
   }
   $('method-settings').innerHTML=html;
@@ -147,21 +147,20 @@ function updateFields(){
   const chosen=targetPlanet();
   $('point-row-target').querySelector('.point-label').textContent=chosen?labels[chosen]+'位置':'选定行星';
   for(const [part,unit]of [['sign','星座'],['degree','度'],['minute','分'],['second','秒']])$('target-'+part).setAttribute('aria-label',(chosen?labels[chosen]:'选定行星')+unit);
-  $('manual-example').textContent=method==='five'?'填入课堂示例':'填入示例点位';
+  $('manual-example').textContent='填入示例点位';
   $('manual-description').textContent=method==='five'?'使用回归黄道位置。福点由太阳、月亮、上升与昼夜自动计算。':'填写下列回归黄道位置；未要求的点位无需填写。';
   $('manual-hint').textContent=method==='five'?'朔望填写出生前最近一次新月或满月时的月亮位置。计算福点时保留分秒，查字时不四舍五入。':method==='angles'?'下降与天底由上升、天顶的对点推导。四角点指实际天文轴线。':method==='eleventh'?'十一宫头按你的原星盘抄入；采用的宫制以原盘为准。':'若按上升起布字，请同时填写上升。行星和上升分别取整数行后计算差值。';
 }
 $('name-form').innerHTML='<div class="form-heading"><h2>填写姓名字母</h2><button id="name-example" class="small-link" type="button">试用示例</button></div>'+
-  '<p class="form-description">先确定你要采用的字母拼写。中文姓名请自行确定转写；这里不会自动转拼音或按笔画计数。</p>'+
-  '<div class="two-fields">'+selectField('name-input-script','输入字母体系',[['latin','拉丁字母 A–Z'],['hebrew','希伯来字母'],['arabic','阿拉伯字母']])+selectField('name-output-script','构名字母体系',[['hebrew','希伯来大数表（至 900）'],['arabic','阿拉伯大数表（含 1000）']],'两种文字分别按各自数表构名；希伯来表不含 1000。')+'</div>'+
+  '<p class="form-description">输入拉丁、希伯来或阿拉伯字母，网站会自动识别。中文姓名请先确认字母拼写；这里不会自动转拼音或按笔画计数。</p>'+
   '<div class="field"><label for="name-text">用于计算的完整字母拼写</label><input id="name-text" type="text" maxlength="120" autocomplete="off" spellcheck="false" placeholder="例如 ALICE" required><span class="field-hint">最多 40 个字母；空格、连字符和撇号不参与计序。</span></div>'+
-  selectField('name-suffix','名号后缀',[['el','el · 数值 31'],['ayl','Ayl · 数值 41']])+
-  '<details class="location-details"><summary>查看拆数约定或手动填写拆分</summary><p class="field-hint">姓名连写后，从 1 开始连续加权。扣除后缀后，按百、十、个位拆分；千位组先拆，再记 1000。11–19 按 10＋个位处理。这是本工具采用的计算约定，所有步骤会列入结果。</p><div class="field"><label for="name-components">自定义拆分数值（可选）</label><input id="name-components" type="text" inputmode="numeric" autocomplete="off" placeholder="例如 40, 1, 1000, 800, 50, 4"><span class="field-hint">留空使用自动拆分；自填时会检查是否与扣除后缀后的数值一致。</span></div></details>'+
+  '<div class="two-fields">'+selectField('name-output-script','构名字母体系',[['hebrew','希伯来字母'],['arabic','阿拉伯字母']],'默认希伯来字母，也可切换阿拉伯字母。')+selectField('name-suffix','名号后缀',[['el','el · 数值 31'],['ayl','Ayl · 数值 41']])+'</div>'+
+  '<details class="location-details"><summary>查看拆数约定或手动填写拆分</summary><p class="field-hint">姓名连写后，从 1 开始连续加权。扣除后缀后，按百、十、个位拆分；千位组先拆，再记 1000。11–19 按 10＋个位处理。希伯来输出在千位组末加 ׳ 标记，标记不读音。这是本工具采用的计算约定，所有步骤会列入结果。</p><div class="field"><label for="name-components">自定义拆分数值（可选）</label><input id="name-components" type="text" inputmode="numeric" autocomplete="off" placeholder="例如 40, 1, 1000, 800, 50, 4"><span class="field-hint">留空使用自动拆分；自填时会检查是否与扣除后缀后的数值一致。</span></div></details>'+
   '<button class="primary-button" id="name-submit" type="submit"><span>计算名号</span></button>';
 $('name-form').addEventListener('input',()=>{clearError();markDirty();});
 $('name-form').addEventListener('change',()=>{clearError();markDirty();});
 $('name-example').addEventListener('click',()=>{
-  $('name-text').value='ALICE';$('name-input-script').value='latin';$('name-output-script').value='hebrew';$('name-suffix').value='el';$('name-components').value='';
+  $('name-text').value='ALICE';$('name-output-script').value='hebrew';$('name-suffix').value='el';$('name-components').value='';
   clearError();markDirty();toast('已填入姓名示例，点击“计算名号”查看结果。');
 });
 
@@ -337,7 +336,7 @@ function readName(){
     if(parts.some(value=>!/^\d{1,4}$/.test(value)))return fail('拆分项请用整数，以逗号或空格分隔。',$('name-components'));
     components=parts.map(Number);
   }
-  return {method:'name',mode:'name',nameInput:{text,inputScript:$('name-input-script').value,outputScript:$('name-output-script').value,suffix:$('name-suffix').value,components}};
+  return {method:'name',mode:'name',nameInput:{text,outputScript:$('name-output-script').value,suffix:$('name-suffix').value,components}};
 }
 function readPayload(){
   if(method==='name')return readName();

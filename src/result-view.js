@@ -83,7 +83,7 @@ function model(data) {
     sect: data.sect === 'day' ? '昼生' : data.sect === 'night' ? '夜生' : '',
     place: text(data.place), birthLocal: timeText(meta.birth_local),
     hebrew: text(data.name.hebrew), transliteration: text(data.name.transliteration),
-    pronunciation: text(data.pronunciation), pronunciationLabel: script === 'ar' ? '字母名辅助' : '课件固定赋音',
+    pronunciation: text(data.pronunciation), pronunciationLabel: script === 'ar' ? '字母名辅助' : '固定赋音',
     script, letters, rootCount, captions,
     candidateLabel: text(data.candidateLabel), candidateSummary: text(data.candidateSummary),
     record: {
@@ -97,7 +97,7 @@ function model(data) {
 
 function sourceContext(view) {
   return view.mode === 'auto' ? [view.place || '出生星盘', view.birthLocal].filter(Boolean).join(' / ')
-    : view.mode === 'name' ? '姓名计算' : '手动输入 / 课堂核算';
+    : view.mode === 'name' ? '姓名计算' : '手动输入';
 }
 function contextText(view) {
   return [view.method, sourceContext(view)].filter(Boolean).join(' / ');
@@ -146,7 +146,7 @@ export function renderResult(data) {
     return cell;
   }));
   const readingNote = get('result').querySelector('.reading-note');
-  if (readingNote) readingNote.textContent = `字母格按取字顺序从左至右列出，所选文字的整名从右至左读。连读转写与${view.pronunciationLabel}分别保留，连读可依课堂指导调整。`;
+  if (readingNote) readingNote.textContent = `字母格按取字顺序从左至右列出，所选文字的整名从右至左读。连读转写与${view.pronunciationLabel}分别保留，可对照各字母读音核对。`;
   let candidates = get('candidate-summary');
   if (!candidates) {
     candidates = document.createElement('div');

@@ -19,7 +19,7 @@ function makeRecord(raw, method) {
       title:'姓名逐字加权记录', caption:'全名连写，序号从 1 连续递增',
       headers:['字母','字母数值','序号权重','乘积','累计和'], rows,
       formula:'加权总数 '+calculation.total+' − 后缀 '+calculation.suffixValue+' = '+calculation.remainder,
-      notes:['拆分数值：'+calculation.components.join(' · '), calculation.convention || '千位组先拆，再记 1000；其余按百、十、个位拆分。'],
+      notes:['拆分数值：'+calculation.components.join(' · '), calculation.restoredExpression ? '数值还原：'+calculation.restoredExpression : '', calculation.convention || '千位组先拆，再记 1000；其余按百、十、个位拆分。'].filter(Boolean),
     };
   }
   const points = raw.points || [];
@@ -52,7 +52,6 @@ function decorate(raw, common, method, payload) {
   if (common.meta.house_system_name) result.details.push(['宫制', common.meta.house_system_name]);
   result.warnings = [...new Set([...(raw.warnings || []), ...(common.chartWarnings || [])])]
     .filter(warning => !warning.includes('完整 22 字母固定赋音表'));
-  if (method === 'name') result.warnings = ['姓名法采用页面注明的连续加权与拆数约定；原课件未给出唯一的通用拆数规则，可手动填写拆分复核。'];
   delete result.chartWarnings;
   delete result.candidates;
   if (common.mode === 'manual' && !['five','angles'].includes(method)
